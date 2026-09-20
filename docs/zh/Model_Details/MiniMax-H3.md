@@ -251,3 +251,10 @@ NF4 量化版本的 LoRA 训练为单阶段流程：量化后所有组件可同�
 ControlNet（控制视频驱动）训练同样基于 `metadata.json`，在数据条目中提供 `control_video` 字段（控制视频路径），并将 `control_video` 追加到 `--data_file_keys` 与 `--extra_inputs` 中。全量训练以 `--trainable_models "controlnet"` 训练 ControlNet 网络（DiT 冻结），并以 `--remove_prefix_in_ckpt "pipe.controlnet."` 保存权重；LoRA 训练则保持 ControlNet 冻结，对 DiT 施加 LoRA，从而让模型在保持控制能力的同时适配新的数据分布。
 
 我们为每个模型编写了推荐的训练脚本，请参考前文“模型总览”中的表格。关于如何编写模型训练脚本，请参考[模型训练](../Pipeline_Usage/Model_Training.md)；更多高阶训练算法，请参考[训练框架详解](https://github.com/modelscope/DiffSynth-Studio/tree/main/docs/zh/Training/)。
+
+
+## 可选 AITER Add+SwiGLU
+
+`--enable_aiter_add_swiglu` 为 MLP 的 `fc1` LoRA 分支启用可选训练融合。需要 AITER 提供支持训练自动微分的 `aiter.ops.triton.add_swiglu.add_swiglu`；安装任意 AITER 发行版不代表已包含此接口。参数默认关闭，不将 AITER 加入必选依赖。
+
+快速路径要求单个普通 PEFT Linear adapter、单位缩放系数、同 dtype 的连续 FP16/BF16 GPU base/adapter 输出，且不启用 DoRA 或自定义 LoRA variant。缺少 AITER 或 adapter 状态不支持时走原生路径，保留模块调用及其 hooks。MLP 融合调用之外，adapter 仍返回正常 Tensor。算子执行错误不会被吞掉。融合算子仅支持一阶训练梯度，高阶微分请保持关闭；使用前应在目标 AITER 构建和加速卡上验证完整训练与性能。

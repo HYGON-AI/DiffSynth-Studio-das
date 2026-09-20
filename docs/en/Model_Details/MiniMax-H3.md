@@ -251,3 +251,10 @@ Keyframe-guided (FL2VA) training appends `input_image,end_image` to `--extra_inp
 ControlNet (control-video-driven) training also builds on `metadata.json`: each data entry provides a `control_video` field (path to the control video), and `control_video` is appended to both `--data_file_keys` and `--extra_inputs`. Full training trains the ControlNet with `--trainable_models "controlnet"` while the DiT stays frozen, and saves the weights with `--remove_prefix_in_ckpt "pipe.controlnet."`; LoRA training keeps the ControlNet frozen and applies LoRA to the DiT instead, so the model adapts to new data distributions while retaining its control capability.
 
 We provide recommended training scripts for each model, please refer to the table in "Model Overview" above. For guidance on writing model training scripts, see [Model Training](../Pipeline_Usage/Model_Training.md); for more advanced training algorithms, see [Training Framework Overview](https://github.com/modelscope/DiffSynth-Studio/tree/main/docs/en/Training/).
+
+
+## Optional AITER Add+SwiGLU
+
+`--enable_aiter_add_swiglu` enables an optional training fusion for the MLP `fc1` LoRA branch. It requires an AITER build exposing `aiter.ops.triton.add_swiglu.add_swiglu` with training autograd; installing an arbitrary AITER release does not guarantee this API is available. The flag is disabled by default and does not add AITER as a required dependency.
+
+The fast path requires one ordinary PEFT Linear adapter with unit scaling, matching contiguous FP16/BF16 GPU base and adapter outputs, and no DoRA or custom LoRA variant. Missing AITER or unsupported adapter state uses the original path. Module calls and their hooks are retained. The adapter has its normal Tensor output outside the MLP's fused call. Kernel execution errors remain visible. The fused kernel supports first-order training gradients only; leave the flag off for higher-order differentiation. Full-model training and performance should be validated with the intended AITER build and accelerator before relying on this option.

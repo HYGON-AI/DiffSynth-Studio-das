@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 from __future__ import annotations
 
 import math
@@ -7,6 +8,7 @@ import torch.nn as nn
 
 from ..core.attention import attention_forward
 from ..core.gradient import gradient_checkpoint_forward
+from .minimax_h3_aiter import minimax_h3_fc1_swiglu
 
 MINIMAX_H3_ADALN_MODALITY_NUM = 3
 _PATCH_T, _PATCH_H, _PATCH_W = 1, 2, 2
@@ -157,9 +159,7 @@ class MiniMaxH3MLP(nn.Module):
         self.fc2 = nn.Linear(ffn_hidden_size, hidden_size, bias=False)
 
     def forward(self, x):
-        hidden = self.fc1(x)
-        gate, up = hidden.chunk(2, dim=-1)
-        hidden = nn.functional.silu(gate) * up
+        hidden = minimax_h3_fc1_swiglu(self.fc1, x)
         return self.fc2(hidden)
 
 
