@@ -1,0 +1,25 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
+# Based on examples/minimax_h3/model_training/full/accelerate_config_zero3.yaml.
+compute_environment: LOCAL_MACHINE
+debug: false
+deepspeed_config:
+  # `overlap_comm: false` is the reason this file exists. On HCU/HIP the private
+  # ZeRO-3 parameter-fetch stream deadlocks against the compute stream in the
+  # first forward, and Accelerate's inline `deepspeed_config` shorthand cannot
+  # express that key -- it only accepts zero_stage / offload_*_device /
+  # zero3_init_flag / zero3_save_16bit_model / gradient_accumulation_steps.
+  # So the full-finetune path has to point at a real DeepSpeed config file.
+  deepspeed_config_file: examples-hcu/MiniMax-H3/configs/deepspeed_zero3_hcu.json
+distributed_type: DEEPSPEED
+downcast_bf16: 'no'
+enable_cpu_affinity: false
+machine_rank: 0
+main_training_function: main
+num_machines: 1
+num_processes: 8
+rdzv_backend: static
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false

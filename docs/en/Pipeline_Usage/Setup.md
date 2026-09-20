@@ -32,6 +32,35 @@ You can install multiple sets of dependencies with `pip install -e ".[audio,quan
 
 ## GPU/NPU Support
 
+### HCU
+
+HCU uses matching DTK and dependencies. A container image is recommended for training and testing.
+
+```bash
+# Pull the image and create the container
+export HCU_IMAGE=harbor.sourcefind.cn:5443/hcu/admin/base/custom:diffsynth-pytorch2100-ubuntu22.04-dtk26.04-py3.10
+docker pull "$HCU_IMAGE"
+docker run -d -t \
+  -v /opt/hyhal:/opt/hyhal:ro \
+  --workdir /data \
+  --privileged --shm-size=32G \
+  --device=/dev/kfd --device=/dev/dri/ --device=/dev/mkfd \
+  --network=host --group-add video \
+  --name diffsynth-hcu \
+  "$HCU_IMAGE"
+
+docker exec -it diffsynth-hcu bash
+
+# Install diffsynth
+cd /data
+git clone https://github.com/HYGON-AI/DiffSynth-Studio.git
+cd DiffSynth-Studio
+pip install -e .
+
+# Install dependencies
+pip install aiter==0.1.6+dtk2604.torch2100.2609161529.ge4d834 flash_attn==2.8.3+dtk2604.torch2100.2609161218.g1fcd1c -i https://pypi.sourcefind.cn/nightly/dtk/
+```
+
 ### NVIDIA GPU
 
 Install as described above.

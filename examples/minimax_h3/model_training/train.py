@@ -1,4 +1,8 @@
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import torch, os, argparse, accelerate
+from transformers import set_seed
 from diffsynth.core import UnifiedDataset
 from diffsynth.core.data.operators import LoadAudioWithTorchaudio, ToAbsolutePath
 from diffsynth.utils.data.minimax_h3 import MiniMaxH3ReferenceLoader
@@ -21,6 +25,8 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         preset_lora_path=None, preset_lora_model=None,
         use_gradient_checkpointing=True,
         use_gradient_checkpointing_offload=False,
+        enable_compile=False,
+        compile_mode="default",
         extra_inputs=None,
         fp8_models=None,
         offload_models=None,
@@ -30,6 +36,7 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         silent_on_missing_audio=False,
         training_cfg_scale=1.0,
         audio_loss_weight=1.0,
+        seed=None,
         device="cpu",
         task="sft",
     ):
@@ -61,10 +68,22 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         )
         self.pipe.scheduler_audio.set_timesteps(1000, training=True)
 
+        if lora_base_model in ("", "dit") and getattr(self.pipe, "dit", None) is not None:
+            from diffsynth.core.ops.minimax_h3_lora import enable_minimax_h3_unit_lora_scale
+            count = enable_minimax_h3_unit_lora_scale(self.pipe.dit)
+            print(f"H3 unit-scaling LoRA fast path installed on {count} Linear modules.")
+
+        if enable_compile and hasattr(self.pipe, "dit") and self.pipe.dit is not None:
+            from diffsynth.core.ops.minimax_h3_tensor_ops import configure_minimax_h3_tensor_compile
+            configure_minimax_h3_tensor_compile(mode=compile_mode)
+
         # Store other configs
         self.silent_on_missing_audio = silent_on_missing_audio
+        self.seed = seed
         self.use_gradient_checkpointing = use_gradient_checkpointing
         self.use_gradient_checkpointing_offload = use_gradient_checkpointing_offload
+        self.enable_compile = enable_compile
+        self.compile_mode = compile_mode
         self.extra_inputs = extra_inputs.split(",") if extra_inputs is not None else []
         self.fp8_models = fp8_models
         self.task = task
@@ -128,7 +147,9 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
             # Reuse the pipeline's CFG preprocessing path to build unconditional
             # embeddings when CFG-aware training is enabled.
             "cfg_scale": self.training_cfg_scale,
-            "seed": 42,
+            # The training seed is controlled by --seed; 42 remains the stage-1
+            # fallback when omitted.
+            "seed": 42 if self.seed is None else self.seed,
             "rand_device": "cpu",
             "use_gradient_checkpointing": self.use_gradient_checkpointing,
             "use_gradient_checkpointing_offload": self.use_gradient_checkpointing_offload,
@@ -137,7 +158,21 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         return inputs_shared, inputs_posi, inputs_nega
 
     def forward(self, data, inputs=None):
-        if inputs is None: inputs = self.get_pipeline_inputs(data)
+        if inputs is None:
+            inputs = self.get_pipeline_inputs(data)
+        else:
+            # Stage 2 consumes cached inputs; runtime CLI flags must override stage 1 values.
+            inputs[0]["use_gradient_checkpointing"] = self.use_gradient_checkpointing
+            inputs[0]["use_gradient_checkpointing_offload"] = self.use_gradient_checkpointing_offload
+        self.last_perf_tokens = 0
+        input_groups = inputs if isinstance(inputs, (list, tuple)) else (inputs,)
+        for input_group in input_groups:
+            if not isinstance(input_group, dict):
+                continue
+            packed = input_group.get("packed")
+            if isinstance(packed, dict) and int(packed.get("seq_len", 0)) > 0:
+                self.last_perf_tokens = int(packed["seq_len"])
+                break
         inputs = self.transfer_data_to_device(inputs, self.pipe.device, self.pipe.torch_dtype)
         for unit in self.pipe.units:
             inputs = self.pipe.unit_runner(unit, self.pipe, *inputs)
@@ -149,6 +184,7 @@ def minimax_h3_parser():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
     parser = add_general_config(parser)
     parser = add_video_size_config(parser)
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for model/LoRA initialization, data ordering, and per-step training noise.")
     parser.add_argument("--processor_path", type=str, default=None, help="Path or `model_id:pattern` of the Qwen3-VL processor.")
     parser.add_argument("--initialize_model_on_cpu", default=False, action="store_true", help="Whether to initialize models on CPU.")
     parser.add_argument("--silent_on_missing_audio", default=False, action="store_true", help="Whether to use silent audio as a fallback when no audio track is present in the video data.")
@@ -160,15 +196,26 @@ def minimax_h3_parser():
 if __name__ == "__main__":
     parser = minimax_h3_parser()
     args = parser.parse_args()
+    if args.seed is not None:
+        set_seed(args.seed)
     if args.num_frames % MINIMAX_H3_TIME_DIVISION_FACTOR != MINIMAX_H3_TIME_DIVISION_REMAINDER:
         raise ValueError(
             f"--num_frames must be {MINIMAX_H3_TIME_DIVISION_FACTOR}n+{MINIMAX_H3_TIME_DIVISION_REMAINDER} "
             f"(e.g. 39, 56, 124) so it lands on the video VAE's temporal grouping, got {args.num_frames}."
         )
-    accelerator = accelerate.Accelerator(
+    accelerator_kwargs = dict(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         kwargs_handlers=[accelerate.DistributedDataParallelKwargs(find_unused_parameters=args.find_unused_parameters)],
     )
+    if args.seed is not None:
+        if hasattr(accelerate, "DataLoaderConfiguration"):
+            accelerator_kwargs["dataloader_config"] = accelerate.DataLoaderConfiguration(
+                use_seedable_sampler=True,
+                data_seed=args.seed,
+            )
+        else:
+            print("Warning: this Accelerate version has no DataLoaderConfiguration; data order will not be explicitly seedable.")
+    accelerator = accelerate.Accelerator(**accelerator_kwargs)
     video_processor = UnifiedDataset.default_video_operator(
         base_path=args.dataset_base_path,
         max_pixels=args.max_pixels,
@@ -219,6 +266,8 @@ if __name__ == "__main__":
         preset_lora_model=args.preset_lora_model,
         use_gradient_checkpointing=args.use_gradient_checkpointing,
         use_gradient_checkpointing_offload=args.use_gradient_checkpointing_offload,
+        enable_compile=getattr(args, "enable_compile", False),
+        compile_mode=getattr(args, "compile_mode", "default"),
         extra_inputs=args.extra_inputs,
         fp8_models=args.fp8_models,
         offload_models=args.offload_models,
@@ -229,6 +278,7 @@ if __name__ == "__main__":
         silent_on_missing_audio=args.silent_on_missing_audio,
         training_cfg_scale=args.training_cfg_scale,
         audio_loss_weight=args.audio_loss_weight,
+        seed=args.seed,
         task=args.task,
         device="cpu" if (args.initialize_model_on_cpu or args.enable_model_cpu_offload) else accelerator.device,
     )

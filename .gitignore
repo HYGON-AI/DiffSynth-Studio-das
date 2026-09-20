@@ -4,6 +4,7 @@
 /diffusers
 /.vscode
 /.opencode
+/logs
 *.pkl
 *.safetensors
 *.pth

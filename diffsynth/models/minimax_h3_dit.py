@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 from __future__ import annotations
 
 import math
@@ -5,8 +8,16 @@ import math
 import torch
 import torch.nn as nn
 
-from ..core.attention import attention_forward
+from ..core.attention import attention_varlen_forward
 from ..core.gradient import gradient_checkpoint_forward
+from ..core.ops import can_use_rmsnorm_add, da_cat, rmsnorm_add
+from ..core.ops.minimax_h3_lora import minimax_h3_fc1_swiglu
+from ..core.ops.minimax_h3_tensor_ops import (
+    compiled_rope,
+    modulate_gate,
+    modulate_scale_shift,
+    modulate_update,
+)
 
 MINIMAX_H3_ADALN_MODALITY_NUM = 3
 _PATCH_T, _PATCH_H, _PATCH_W = 1, 2, 2
@@ -40,45 +51,67 @@ def unpack_audio(rows: torch.Tensor, audio_channel: int, steps: int, latent_dim:
     return rows.reshape(audio_channel, steps, latent_dim).permute(0, 2, 1).contiguous()
 
 
-def _norm(size: int, *, eps: float) -> nn.RMSNorm:
-    return nn.RMSNorm(size, eps=eps)
+if hasattr(nn, "RMSNorm"):
+    RMSNorm = nn.RMSNorm
+else:
+    from .general_modules import RMSNorm
+
+class MiniMaxH3RMSNorm(RMSNorm):
+    def forward(self, x, rope_freqs=None, gate=None, other=None, indices=None):
+        if gate is not None:
+            # Access weight inside its owner so ZeRO-3 hooks remain effective.
+            if gate.dtype == other.dtype and can_use_rmsnorm_add(other, x, self.weight):
+                update = modulate_update(gate, other, indices)
+                return rmsnorm_add(update, x, self.weight, self.eps, return_residual=True)
+            residual = modulate_gate(x, gate, other, indices)
+            return super().forward(residual), residual
+        # Keep native RMSNorm; only its RoPE consumer may be compiled.
+        result = super().forward(x)
+        return _apply_rope(result, rope_freqs) if rope_freqs is not None else result
+
+
+def _norm(size: int, *, eps: float) -> RMSNorm:
+    return MiniMaxH3RMSNorm(size, eps=eps)
+
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     x1, x2 = torch.chunk(x, 2, dim=-1)
-    return torch.cat((-x2, x1), dim=-1)
+    return da_cat(-x2, x1, dim=-1)
 
 
 def _apply_rope(x: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
+    compiled = compiled_rope(x, freqs)
+    if compiled is not None:
+        return compiled
     rot_dim = freqs.shape[-1]
     x_rot, x_pass = x[..., :rot_dim], x[..., rot_dim:]
     cos = torch.cos(freqs).to(x.dtype).unsqueeze(1)
     sin = torch.sin(freqs).to(x.dtype).unsqueeze(1)
     x_rot = (x_rot * cos) + (_rotate_half(x_rot) * sin)
-    return torch.cat((x_rot, x_pass), dim=-1)
+    return da_cat(x_rot, x_pass, dim=-1)
 
 
 def _modulate_scale_shift(x, shift, scale, indices):
-    # Cast back to x: index_select on the AdaLN params can promote the expression.
-    return (x * (1.0 + scale.index_select(0, indices)) + shift.index_select(0, indices)).to(x.dtype)
+    return modulate_scale_shift(x, shift, scale, indices)
 
 
 def _modulate_gate(x, gate, other, indices):
-    return (x + gate.index_select(0, indices) * other).to(x.dtype)
+    return modulate_gate(x, gate, other, indices)
 
 
-def _sdpa_varlen_attention(q, k, v, cu_seqlens, softmax_scale):
-    out = torch.empty_like(q)
-    bounds = cu_seqlens.tolist()
-    for start, stop in zip(bounds[:-1], bounds[1:]):
-        if stop == start:
-            continue
-        seg_q = q[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_k = k[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_v = v[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_out = attention_forward(seg_q, seg_k, seg_v, scale=softmax_scale)
-        out[start:stop] = seg_out.squeeze(0).transpose(0, 1)
-    return out
+def _sdpa_varlen_attention(q, k, v, cu_seqlens, softmax_scale, max_seqlen=None):
+    if max_seqlen is None:
+        bounds = cu_seqlens.tolist()
+        max_seqlen = max(stop - start for start, stop in zip(bounds[:-1], bounds[1:]))
+    return attention_varlen_forward(
+        q,
+        k,
+        v,
+        cu_seqlens=cu_seqlens,
+        max_seqlen=max_seqlen,
+        scale=softmax_scale,
+    )
 
 
 class MiniMaxH3Rope(nn.Module):
@@ -137,15 +170,10 @@ class MiniMaxH3Attention(nn.Module):
         total = x.shape[0]
         qkv = self.qkv_proj(x)
         qkv = qkv.view(total, self.num_heads, 3, self.head_dim)
-        q = qkv[:, :, 0, :]
-        k = qkv[:, :, 1, :]
-        v = qkv[:, :, 2, :]
-        q = self.q_norm(q)
-        k = self.k_norm(k)
-        if rope_freqs is not None:
-            q = _apply_rope(q, rope_freqs)
-            k = _apply_rope(k, rope_freqs)
-        out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale)
+        q, k, v = qkv.unbind(dim=2)
+        q = self.q_norm(q, rope_freqs)
+        k = self.k_norm(k, rope_freqs)
+        out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale, max_seqlen=max_seqlen)
         out = out.reshape(total, self.num_heads * self.head_dim)
         return self.out_proj(out)
 
@@ -157,9 +185,7 @@ class MiniMaxH3MLP(nn.Module):
         self.fc2 = nn.Linear(ffn_hidden_size, hidden_size, bias=False)
 
     def forward(self, x):
-        hidden = self.fc1(x)
-        gate, up = hidden.chunk(2, dim=-1)
-        hidden = nn.functional.silu(gate) * up
+        hidden = minimax_h3_fc1_swiglu(self.fc1, x)
         return self.fc2(hidden)
 
 
@@ -226,9 +252,7 @@ class MiniMaxH3DiTBlock(nn.Module):
         h = self.norm1(x)
         h = _modulate_scale_shift(h, shift_msa, scale_msa, combined_indices)
         h = self.attn(h, rope_freqs=rope_freqs, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
-        x = _modulate_gate(residual, gate_msa, h, combined_indices)
-        residual = x
-        h = self.norm2(x)
+        h, residual = self.norm2(residual, None, gate_msa, h, combined_indices)
         h = _modulate_scale_shift(h, shift_mlp, scale_mlp, combined_indices)
         h = self.mlp(h)
         return _modulate_gate(residual, gate_mlp, h, combined_indices)

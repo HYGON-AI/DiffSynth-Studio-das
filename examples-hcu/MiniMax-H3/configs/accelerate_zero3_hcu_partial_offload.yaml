@@ -1,0 +1,20 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
+# Based on examples/minimax_h3/model_training/full/accelerate_config_zero3.yaml.
+# Optional hybrid optimizer: validate memory headroom before selecting this.
+compute_environment: LOCAL_MACHINE
+debug: false
+deepspeed_config:
+  deepspeed_config_file: examples-hcu/MiniMax-H3/configs/deepspeed_zero3_hcu_partial_offload.json
+distributed_type: DEEPSPEED
+downcast_bf16: 'no'
+enable_cpu_affinity: false
+machine_rank: 0
+main_training_function: main
+num_machines: 1
+num_processes: 8
+rdzv_backend: static
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false

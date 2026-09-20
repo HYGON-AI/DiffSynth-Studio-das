@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 flux_general_vram_config = {
     "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
     "torch.nn.Embedding": "diffsynth.core.vram.layers.AutoWrappedModule",
@@ -13,14 +14,17 @@ VRAM_MANAGEMENT_MODULE_MAPS = {
     "diffsynth.models.minimax_h3_dit.MiniMaxH3DiT": {
         "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
         "torch.nn.RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
+        "diffsynth.models.minimax_h3_dit.MiniMaxH3RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
     },
     "diffsynth.models.minimax_h3_dit_comfy.MiniMaxH3DiTComfy": {
         "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
         "torch.nn.RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
+        "diffsynth.models.minimax_h3_dit.MiniMaxH3RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
     },
     "diffsynth.models.minimax_h3_dit_comfy.MiniMaxH3DiTComfyPruned": {
         "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
         "torch.nn.RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
+        "diffsynth.models.minimax_h3_dit.MiniMaxH3RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
     },
     "diffsynth.models.minimax_h3_text_encoder.MiniMaxH3TextEncoder": {
         "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
@@ -503,6 +507,7 @@ VRAM_MANAGEMENT_MODULE_MAPS = {
     "diffsynth.models.minimax_h3_controlnet.MiniMaxH3ControlNet": {
         "torch.nn.Linear": "diffsynth.core.vram.layers.AutoWrappedLinear",
         "torch.nn.RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
+        "diffsynth.models.minimax_h3_dit.MiniMaxH3RMSNorm": "diffsynth.core.vram.layers.AutoWrappedModule",
     },
     "diffsynth.models.sensenova_u1_dit.SenseNovaU1DiT": {
         "diffsynth.models.sensenova_u1_dit.SenseNovaU1TimestepEmbedder": "diffsynth.core.vram.layers.AutoWrappedModule",

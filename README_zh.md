@@ -11,6 +11,10 @@
 
 [Switch to English](./README.md)
 
+## HCU 版本
+
+本仓库是 DiffSynth-Studio-das 的 HCU 适配版本。[环境配置](docs/zh/Pipeline_Usage/Setup.md#hcu) · [训练脚本](examples-hcu/MiniMax-H3/)
+
 ## 简介
 
 欢迎来到 Diffusion 模型的魔法世界！DiffSynth-Studio 是由[魔搭社区](https://www.modelscope.cn/)团队开发和维护的开源 Diffusion 模型引擎。我们期望以框架建设孵化技术创新，凝聚开源社区的力量，探索生成式模型技术的丰富能力！

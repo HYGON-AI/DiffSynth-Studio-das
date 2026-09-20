@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import argparse
 
 
@@ -40,6 +41,7 @@ def add_training_config(parser: argparse.ArgumentParser):
     parser.add_argument("--num_epochs", type=int, default=1, help="Number of epochs.")
     parser.add_argument("--trainable_models", type=str, default=None, help="Models to train, e.g., dit, vae, text_encoder.")
     parser.add_argument("--find_unused_parameters", default=False, action="store_true", help="Whether to find unused parameters in DDP.")
+    parser.add_argument("--deepspeed_zero3_lora_single_param_all_reduce", default=False, action="store_true", help="Use all-reduce instead of all-gather for single PEFT LoRA parameter fetches under ZeRO-3. On HIP this also disables overlap_comm so fetches stay on the default device stream.")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay.")
     parser.add_argument("--task", type=str, default="sft", required=False, help="Task type.")
     parser.add_argument("--customized_optimizer", type=str, default=None, help="Customized optimizer, e.g., `bitsandbytes.optim.Adam8bit` and `torch.optim.Adam`. The default optimizer is `torch.optim.AdamW`.")
@@ -66,6 +68,11 @@ def add_gradient_config(parser: argparse.ArgumentParser):
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps.")
     return parser
 
+def add_compile_config(parser: argparse.ArgumentParser):
+    parser.add_argument("--enable_compile", default=False, action="store_true", help="Enable torch.compile for regional DiT block compilation during training.")
+    parser.add_argument("--compile_mode", type=str, default="default", choices=["default", "reduce-overhead", "max-autotune", "max-autotune-no-cudagraphs"], help="Compilation mode for torch.compile.")
+    return parser
+
 def add_template_model_config(parser: argparse.ArgumentParser):
     parser.add_argument("--template_model_id_or_path", type=str, default=None, help="Model ID of path of template models.")
     parser.add_argument("--enable_lora_hot_loading", default=False, action="store_true", help="Whether to enable LoRA hot-loading. Only available for image-to-lora models.")
@@ -75,6 +82,26 @@ def add_offload_training_config(parser: argparse.ArgumentParser):
     parser.add_argument("--enable_model_cpu_offload", default=False, action="store_true", help="Enable layer offload training. Weights are kept on CPU and loaded to GPU one layer at a time.")
     parser.add_argument("--enable_optimizer_cpu_offload", default=False, action="store_true", help="When --enable_model_cpu_offload is enabled, run optimizer on CPU. All params are offloaded to CPU. Default is False (trainable params stay on GPU, optimizer on GPU).")
     parser.add_argument("--cpu_offload_split_threshold", type=int, default=None, help="Experimental! When --enable_model_cpu_offload is enabled, modules with total params above this threshold (in MB) are recursively split into children. None means offload every leaf module directly. Default: None.")
+    return parser
+
+def add_profiler_config(parser: argparse.ArgumentParser):
+    parser.add_argument("--enable_torch_profiler", default=False, action="store_true", help="Enable scheduled PyTorch profiler traces during training.")
+    parser.add_argument("--profiler_output_path", type=str, default=None, help="Trace output directory. Defaults to `<output_path>/torch_trace`.")
+    parser.add_argument("--profiler_freq", type=int, default=None, help="Profiler cycle length in training steps. When set, wait is derived as `freq - warmup - active`.")
+    parser.add_argument("--profiler_wait", type=int, default=0, help="Number of initial training steps skipped by each profiler cycle.")
+    parser.add_argument("--profiler_warmup", type=int, default=1, help="Number of warmup training steps in each profiler cycle.")
+    parser.add_argument("--profiler_active", type=int, default=1, help="Number of recorded training steps in each profiler cycle.")
+    parser.add_argument("--profiler_repeat", type=int, default=1, help="Number of profiler cycles.")
+    parser.add_argument("--profiler_target_ranks", type=str, default="0", help="Comma-separated ranks that export traces, or `all`. All ranks still profile to preserve distributed timing.")
+    parser.add_argument("--profiler_record_shapes", default=False, action="store_true", help="Record tensor shapes in profiler traces.")
+    parser.add_argument("--profiler_profile_memory", default=False, action="store_true", help="Record tensor memory usage in profiler traces.")
+    parser.add_argument("--profiler_with_stack", default=False, action="store_true", help="Record Python stack traces. This has significant overhead.")
+    parser.add_argument("--profiler_with_modules", default=False, action="store_true", help="Record module hierarchy in profiler traces.")
+    return parser
+
+def add_performance_config(parser: argparse.ArgumentParser):
+    parser.add_argument("--performance_log_interval", type=int, default=10, help="Log performance metrics every N optimizer steps when W&B logging is enabled.")
+    parser.add_argument("--hardware_peak_tflops", type=float, default=None, help="Per-device dense BF16 peak TFLOPs used for MFU. Required to report MFU.")
     return parser
 
 def add_logger_config(parser: argparse.ArgumentParser):
@@ -115,7 +142,10 @@ def add_general_config(parser: argparse.ArgumentParser):
     parser = add_output_config(parser)
     parser = add_lora_config(parser)
     parser = add_gradient_config(parser)
+    parser = add_compile_config(parser)
     parser = add_template_model_config(parser)
     parser = add_offload_training_config(parser)
+    parser = add_profiler_config(parser)
+    parser = add_performance_config(parser)
     parser = add_logger_config(parser)
     return parser

@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import os, torch
 from accelerate import Accelerator
 
@@ -101,12 +102,32 @@ class ModelLogger:
             self.loggers.append(CSVLogger(self.output_path))
         self.loggers_initialized = True
 
+    def log_metrics(self, accelerator: Accelerator, metrics, step):
+        """Log performance telemetry to W&B only.
+
+        These metrics are a W&B feature; `loss.csv` and TensorBoard stay
+        loss-only so the CSV remains a clean loss trace.
+        """
+        if not accelerator.is_main_process:
+            return
+        if not self.loggers_initialized:
+            self.init_loggers()
+        for logger in self.loggers:
+            if not isinstance(logger, WandbLogger):
+                continue
+            for key, value in metrics.items():
+                logger.log(key, value, step)
+
     def on_step_end(self, accelerator: Accelerator, model: torch.nn.Module, save_steps=None, **kwargs):
         self.num_steps += 1
+        loss = kwargs.get("loss")
+        if loss is not None:
+            # Rank 0's loss. Gathering across ranks would add a collective on
+            # every step; the rank-local trace is enough to watch convergence.
+            loss = loss.detach().float().mean()
         if accelerator.is_main_process:
             if not self.loggers_initialized:
                 self.init_loggers()
-            loss = kwargs.get("loss")
             if loss is not None:
                 for logger in self.loggers:
                     logger.log("loss", loss, self.num_steps)

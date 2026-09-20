@@ -32,6 +32,35 @@ pip install diffsynth
 
 ## GPU/NPU 支持
 
+### HCU
+
+HCU 使用配套 DTK 和相关依赖，推荐以镜像形式运行训练和测试。
+
+```bash
+# 拉取镜像并构建容器
+export HCU_IMAGE=harbor.sourcefind.cn:5443/hcu/admin/base/custom:diffsynth-pytorch2100-ubuntu22.04-dtk26.04-py3.10
+docker pull "$HCU_IMAGE"
+docker run -d -t \
+  -v /opt/hyhal:/opt/hyhal:ro \
+  --workdir /data \
+  --privileged --shm-size=32G \
+  --device=/dev/kfd --device=/dev/dri/ --device=/dev/mkfd \
+  --network=host --group-add video \
+  --name diffsynth-hcu \
+  "$HCU_IMAGE"
+
+docker exec -it diffsynth-hcu bash
+
+# 安装 diffsynth
+cd /data
+git clone https://github.com/HYGON-AI/DiffSynth-Studio.git
+cd DiffSynth-Studio
+pip install -e .
+
+# 安装相关依赖
+pip install aiter==0.1.6+dtk2604.torch2100.2609161529.ge4d834 flash_attn==2.8.3+dtk2604.torch2100.2609161218.g1fcd1c -i https://pypi.sourcefind.cn/nightly/dtk/
+```
+
 ### NVIDIA GPU
 
 按照以上方式安装即可。

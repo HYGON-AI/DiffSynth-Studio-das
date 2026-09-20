@@ -1,5 +1,60 @@
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 from .base_pipeline import BasePipeline
 import torch
+
+
+_STEP_SEED_MODULUS = 2**63 - 1
+
+
+def _get_training_rng_context(pipe):
+    """Return the runner-provided deterministic loss RNG context, if enabled."""
+    context = getattr(pipe, "_diffsynth_training_rng_context", None)
+    if context is None:
+        return None
+    return (
+        int(context["seed"]),
+        int(context["epoch"]),
+        int(context["step"]),
+        int(context["rank"]),
+    )
+
+
+def _derive_step_seed(context, stream):
+    """Derive independent, stable seeds for timestep/video/audio streams."""
+    seed, epoch, step, rank = context
+    return (
+        seed
+        + 1_000_003 * epoch
+        + 1_000_033 * step
+        + 1_000_037 * rank
+        + 1_000_081 * stream
+    ) % _STEP_SEED_MODULUS
+
+
+def _sample_timestep_id(min_timestep_boundary, max_timestep_boundary, context):
+    if context is None:
+        return torch.randint(min_timestep_boundary, max_timestep_boundary, (1,))
+    generator = torch.Generator(device="cpu").manual_seed(_derive_step_seed(context, stream=0))
+    return torch.randint(
+        min_timestep_boundary,
+        max_timestep_boundary,
+        (1,),
+        generator=generator,
+        device="cpu",
+    )
+
+
+def _sample_noise_like(tensor, context, stream):
+    if context is None:
+        return torch.randn_like(tensor)
+    # Generate on CPU so the seeded stream does not depend on CUDA/HCU PRNG
+    # implementation details. The tensor is small relative to the DiT forward,
+    # and the cast/transfer happens before scheduler arithmetic.
+    generator = torch.Generator(device="cpu").manual_seed(_derive_step_seed(context, stream))
+    noise = torch.randn(tensor.shape, generator=generator, device="cpu", dtype=torch.float32)
+    return noise.to(device=tensor.device, dtype=tensor.dtype)
 
 
 def FlowMatchSFTLoss(pipe: BasePipeline, **inputs):
@@ -11,10 +66,11 @@ def FlowMatchSFTLoss(pipe: BasePipeline, **inputs):
     max_timestep_boundary = int(inputs.get("max_timestep_boundary", 1) * len(pipe.scheduler.timesteps))
     min_timestep_boundary = int(inputs.get("min_timestep_boundary", 0) * len(pipe.scheduler.timesteps))
 
-    timestep_id = torch.randint(min_timestep_boundary, max_timestep_boundary, (1,))
+    rng_context = _get_training_rng_context(pipe)
+    timestep_id = _sample_timestep_id(min_timestep_boundary, max_timestep_boundary, rng_context)
     timestep = pipe.scheduler.timesteps[timestep_id].to(dtype=pipe.torch_dtype, device=pipe.device)
-    
-    noise = torch.randn_like(inputs["input_latents"]) * inputs.get("noise_scale", 1.0)
+
+    noise = _sample_noise_like(inputs["input_latents"], rng_context, stream=1) * inputs.get("noise_scale", 1.0)
     inputs["latents"] = pipe.scheduler.add_noise(inputs["input_latents"], noise, timestep)
     training_target = pipe.scheduler.training_target(inputs["input_latents"], noise, timestep)
     
@@ -37,17 +93,18 @@ def FlowMatchSFTAudioVideoLoss(pipe: BasePipeline, **inputs):
     max_timestep_boundary = int(inputs.get("max_timestep_boundary", 1) * len(pipe.scheduler.timesteps))
     min_timestep_boundary = int(inputs.get("min_timestep_boundary", 0) * len(pipe.scheduler.timesteps))
 
-    timestep_id = torch.randint(min_timestep_boundary, max_timestep_boundary, (1,))
+    rng_context = _get_training_rng_context(pipe)
+    timestep_id = _sample_timestep_id(min_timestep_boundary, max_timestep_boundary, rng_context)
     timestep = pipe.scheduler.timesteps[timestep_id].to(dtype=pipe.torch_dtype, device=pipe.device)
-    
+
     # video
-    noise = torch.randn_like(inputs["input_latents"])
+    noise = _sample_noise_like(inputs["input_latents"], rng_context, stream=1)
     inputs["video_latents"] = pipe.scheduler.add_noise(inputs["input_latents"], noise, timestep)
     training_target = pipe.scheduler.training_target(inputs["input_latents"], noise, timestep)
-    
+
     # audio
     if inputs.get("audio_input_latents") is not None:
-        audio_noise = torch.randn_like(inputs["audio_input_latents"])
+        audio_noise = _sample_noise_like(inputs["audio_input_latents"], rng_context, stream=2)
         inputs["audio_latents"] = pipe.scheduler.add_noise(inputs["audio_input_latents"], audio_noise, timestep)
         training_target_audio = pipe.scheduler.training_target(inputs["audio_input_latents"], audio_noise, timestep)
 
@@ -67,16 +124,17 @@ def FlowMatchSFTMiniMaxH3AudioVideoLoss(pipe: BasePipeline, training_cfg_scale: 
     max_timestep_boundary = int(inputs.get("max_timestep_boundary", 1) * len(pipe.scheduler.timesteps))
     min_timestep_boundary = int(inputs.get("min_timestep_boundary", 0) * len(pipe.scheduler.timesteps))
 
-    timestep_id = torch.randint(min_timestep_boundary, max_timestep_boundary, (1,))
+    rng_context = _get_training_rng_context(pipe)
+    timestep_id = _sample_timestep_id(min_timestep_boundary, max_timestep_boundary, rng_context)
     timestep_video = pipe.scheduler.timesteps[timestep_id].to(dtype=torch.float32, device=pipe.device)
     timestep_audio = pipe.scheduler_audio.timesteps[timestep_id].to(dtype=torch.float32, device=pipe.device)
 
-    noise = torch.randn_like(inputs["input_latents"])
+    noise = _sample_noise_like(inputs["input_latents"], rng_context, stream=1)
     inputs["video_latents"] = pipe.scheduler.add_noise(inputs["input_latents"], noise, timestep_video)
     training_target = pipe.scheduler.training_target(inputs["input_latents"], noise, timestep_video)
 
     if "audio_input_latents" in inputs:
-        audio_noise = torch.randn_like(inputs["audio_input_latents"])
+        audio_noise = _sample_noise_like(inputs["audio_input_latents"], rng_context, stream=2)
         inputs["audio_latents"] = pipe.scheduler_audio.add_noise(inputs["audio_input_latents"], audio_noise, timestep_audio)
         training_target_audio = pipe.scheduler_audio.training_target(inputs["audio_input_latents"], audio_noise, timestep_audio)
 

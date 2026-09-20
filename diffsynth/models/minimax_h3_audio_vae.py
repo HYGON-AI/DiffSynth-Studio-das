@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 # SPDX-License-Identifier: Apache-2.0
 import math
 from typing import List
@@ -169,11 +170,15 @@ def kaiser_sinc_filter1d(cutoff, half_width, kernel_size):
         beta = 0.5842 * (A - 21) ** 0.4 + 0.07886 * (A - 21.0)
     else:
         beta = 0.0
-    window = torch.kaiser_window(kernel_size, beta=beta, periodic=False)
+    # DeepSpeed ZeRO-3 may redirect factory defaults to the local accelerator
+    # while nested non-parameter tensors still default to CPU. Keep this
+    # construction explicitly on CPU; the registered filter parameter is
+    # partitioned/moved with the module afterward.
+    window = torch.kaiser_window(kernel_size, beta=beta, periodic=False, device="cpu")
     if even:
-        time = torch.arange(-half_size, half_size) + 0.5
+        time = torch.arange(-half_size, half_size, device="cpu") + 0.5
     else:
-        time = torch.arange(kernel_size) - half_size
+        time = torch.arange(kernel_size, device="cpu") - half_size
     if cutoff == 0:
         filter_ = torch.zeros_like(time)
     else:

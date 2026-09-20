@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import torch, os, inspect
 from einops import rearrange, repeat
 
@@ -188,6 +191,44 @@ def flash_attention_2(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, q_patte
     window_size = (window_size, window_size) if window_size is not None else (-1, -1)
     out = flash_attn.flash_attn_func(q, k, v, softmax_scale=scale, causal=is_causal, window_size=window_size)
     out = rearrange_out(out, out_pattern, required_out_pattern, dims)
+    return out
+
+
+def attention_varlen_forward(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    cu_seqlens: torch.Tensor,
+    max_seqlen: int,
+    scale=None,
+):
+    """Compute independent packed attention segments without padding between them."""
+    if ATTENTION_IMPLEMENTATION == "flash_attention_2":
+        out = flash_attn.flash_attn_varlen_func(
+            q,
+            k,
+            v,
+            cu_seqlens_q=cu_seqlens,
+            cu_seqlens_k=cu_seqlens,
+            max_seqlen_q=max_seqlen,
+            max_seqlen_k=max_seqlen,
+            softmax_scale=scale,
+            causal=False,
+        )
+        return out[0] if isinstance(out, tuple) else out
+
+    out = torch.empty_like(q)
+    bounds = cu_seqlens.tolist()
+    for start, stop in zip(bounds[:-1], bounds[1:]):
+        if stop == start:
+            continue
+        segment = attention_forward(
+            q[start:stop].transpose(0, 1).unsqueeze(0),
+            k[start:stop].transpose(0, 1).unsqueeze(0),
+            v[start:stop].transpose(0, 1).unsqueeze(0),
+            scale=scale,
+        )
+        out[start:stop] = segment.squeeze(0).transpose(0, 1)
     return out
 
 

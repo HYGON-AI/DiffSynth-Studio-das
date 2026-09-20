@@ -1,4 +1,4 @@
-# DiffSynth-Studio
+# DiffSynth-Studio-das
 
 <a href="https://github.com/modelscope/DiffSynth-Studio"><img src=".github/workflows/logo.gif" title="Logo" style="max-width:100%;" width="55" /></a> <a href="https://trendshift.io/repositories/10946" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10946" alt="modelscope%2FDiffSynth-Studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
 
@@ -10,6 +10,11 @@
 [![Discord](https://badgen.net//discord/members/Mm9suEeUDc)](https://discord.gg/Mm9suEeUDc)
 
 [切换到中文版](./README_zh.md)
+
+## HCU Support
+
+This fork includes HCU adaptations and optimizations for MiniMax-H3 Ref2VA full training and LoRA finetuning.
+See the [HCU environment guide](docs/en/Pipeline_Usage/Setup.md#hcu) ([中文](docs/zh/Pipeline_Usage/Setup.md#hcu)) and [training scripts](examples-hcu/MiniMax-H3/).
 
 ## Introduction
 

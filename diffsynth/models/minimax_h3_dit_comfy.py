@@ -1,9 +1,10 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import types
 
 import torch
 from torch import nn
 
-from .minimax_h3_dit import MiniMaxH3AdalnProj, MiniMaxH3DiT, _apply_rope, _sdpa_varlen_attention
+from .minimax_h3_dit import MiniMaxH3AdalnProj, MiniMaxH3DiT, _sdpa_varlen_attention
 
 
 class MiniMaxH3ComfyPrunedAdalnProj(MiniMaxH3AdalnProj):
@@ -18,15 +19,17 @@ def _comfy_attention_forward(self, x, *, rope_freqs, cu_seqlens, max_seqlen=None
     total = x.shape[0]
     qkv = self.qkv_proj(x)
     qkv = qkv.view(total, 3, self.num_heads, self.head_dim)
-    q = qkv[:, 0, :, :]
-    k = qkv[:, 1, :, :]
-    v = qkv[:, 2, :, :]
-    q = self.q_norm(q)
-    k = self.k_norm(k)
-    if rope_freqs is not None:
-        q = _apply_rope(q, rope_freqs)
-        k = _apply_rope(k, rope_freqs)
-    out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale)
+    q, k, v = qkv.unbind(dim=1)
+    q = self.q_norm(q, rope_freqs)
+    k = self.k_norm(k, rope_freqs)
+    out = _sdpa_varlen_attention(
+        q,
+        k,
+        v,
+        cu_seqlens=cu_seqlens,
+        softmax_scale=self.softmax_scale,
+        max_seqlen=max_seqlen,
+    )
     out = out.reshape(total, self.num_heads * self.head_dim)
     return self.out_proj(out)
 
