@@ -11,6 +11,17 @@
 
 [切换到中文版](./README_zh.md)
 
+## 🏷️ Attribution
+
+This project is based on upstream [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio).
+
+- Upstream repository: [https://github.com/modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio)
+- Upstream branch: `main`
+- Upstream Commit: `4dbf980d4d0eb34eda136300dd0d72014cff8965`
+- Upstream license: [Apache-2.0](LICENSE)
+
+Modified by Hygon Information Technology Co., Ltd.
+
 ## HCU Support
 
 This fork includes HCU adaptations and optimizations for MiniMax-H3 Ref2VA full training and LoRA finetuning.

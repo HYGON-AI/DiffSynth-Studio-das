@@ -11,6 +11,17 @@
 
 [Switch to English](./README.md)
 
+## 🏷️ 上游归属
+
+本项目基于上游 [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) 进行 HCU 适配与优化。
+
+- 上游仓库：[https://github.com/modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio)
+- 上游分支：`main`
+- 上游 Commit：`4dbf980d4d0eb34eda136300dd0d72014cff8965`
+- 上游许可证：[Apache-2.0](LICENSE)
+
+Modified by Hygon Information Technology Co., Ltd.
+
 ## HCU 版本
 
 本仓库是 DiffSynth-Studio-das 的 HCU 适配版本。[环境配置](docs/zh/Pipeline_Usage/Setup.md#hcu) · [训练脚本](examples-hcu/MiniMax-H3/)
