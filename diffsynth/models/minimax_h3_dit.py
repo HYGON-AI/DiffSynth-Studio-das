@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 from __future__ import annotations
 
 import math
@@ -5,7 +6,7 @@ import math
 import torch
 import torch.nn as nn
 
-from ..core.attention import attention_forward
+from ..core.attention import attention_varlen_forward
 from ..core.gradient import gradient_checkpoint_forward
 
 MINIMAX_H3_ADALN_MODALITY_NUM = 3
@@ -67,18 +68,13 @@ def _modulate_gate(x, gate, other, indices):
     return (x + gate.index_select(0, indices) * other).to(x.dtype)
 
 
-def _sdpa_varlen_attention(q, k, v, cu_seqlens, softmax_scale):
-    out = torch.empty_like(q)
-    bounds = cu_seqlens.tolist()
-    for start, stop in zip(bounds[:-1], bounds[1:]):
-        if stop == start:
-            continue
-        seg_q = q[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_k = k[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_v = v[start:stop].transpose(0, 1).unsqueeze(0)
-        seg_out = attention_forward(seg_q, seg_k, seg_v, scale=softmax_scale)
-        out[start:stop] = seg_out.squeeze(0).transpose(0, 1)
-    return out
+def _sdpa_varlen_attention(q, k, v, cu_seqlens, softmax_scale, max_seqlen=None):
+    if max_seqlen is None:
+        bounds = cu_seqlens.tolist()
+        max_seqlen = max((stop - start for start, stop in zip(bounds[:-1], bounds[1:])), default=0)
+    return attention_varlen_forward(
+        q, k, v, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, scale=softmax_scale,
+    )
 
 
 class MiniMaxH3Rope(nn.Module):
@@ -145,7 +141,7 @@ class MiniMaxH3Attention(nn.Module):
         if rope_freqs is not None:
             q = _apply_rope(q, rope_freqs)
             k = _apply_rope(k, rope_freqs)
-        out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale)
+        out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale, max_seqlen=max_seqlen)
         out = out.reshape(total, self.num_heads * self.head_dim)
         return self.out_proj(out)
 

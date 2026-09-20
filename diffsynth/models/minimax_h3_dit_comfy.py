@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 import types
 
 import torch
@@ -26,7 +27,7 @@ def _comfy_attention_forward(self, x, *, rope_freqs, cu_seqlens, max_seqlen=None
     if rope_freqs is not None:
         q = _apply_rope(q, rope_freqs)
         k = _apply_rope(k, rope_freqs)
-    out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale)
+    out = _sdpa_varlen_attention(q, k, v, cu_seqlens=cu_seqlens, softmax_scale=self.softmax_scale, max_seqlen=max_seqlen)
     out = out.reshape(total, self.num_heads * self.head_dim)
     return self.out_proj(out)
 
