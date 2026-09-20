@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 from .operators import *
 import torch, json, pandas
 
@@ -61,7 +62,7 @@ class UnifiedDataset(torch.utils.data.Dataset):
         ])
         
     def search_for_cached_data_files(self, path):
-        for file_name in os.listdir(path):
+        for file_name in sorted(os.listdir(path)):
             subpath = os.path.join(path, file_name)
             if os.path.isdir(subpath):
                 self.search_for_cached_data_files(subpath)
@@ -72,6 +73,7 @@ class UnifiedDataset(torch.utils.data.Dataset):
         if metadata_path is None:
             print("No metadata_path. Searching for cached data files.")
             self.search_for_cached_data_files(self.base_path)
+            self.cached_data.sort()
             print(f"{len(self.cached_data)} cached data files found.")
         elif metadata_path.endswith(".json"):
             with open(metadata_path, "r") as f:
