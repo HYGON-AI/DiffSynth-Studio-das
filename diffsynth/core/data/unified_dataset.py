@@ -1,4 +1,3 @@
-# Modified by Hygon Information Technology Co., Ltd., 2026.
 from .operators import *
 import torch, json, pandas
 
