@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
+# SPDX-License-Identifier: Apache-2.0
 """Optional AITER Add+SwiGLU for MiniMax-H3 PEFT fc1 adapters.
 
 No parameter replacement or global PEFT patching. All linear/dropout modules
