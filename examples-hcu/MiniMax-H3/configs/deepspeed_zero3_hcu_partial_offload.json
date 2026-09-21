@@ -14,7 +14,7 @@
     "offload_optimizer": {
       "device": "cpu",
       "pin_memory": true,
-      "ratio": 0.9
+      "ratio": 0.7
     },
     "offload_param": {
       "device": "none"
