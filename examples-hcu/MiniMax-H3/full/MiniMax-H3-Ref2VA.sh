@@ -13,6 +13,8 @@ export DIFFSYNTH_SKIP_DOWNLOAD=True
 export HSA_FORCE_FINE_GRAIN_PCIE=1
 export WANDB_MODE=offline
 
+modelscope download --dataset DiffSynth-Studio/diffsynth_example_dataset --include "minimax_h3/MiniMax-H3-Ref2VA/*" --local_dir ./data/diffsynth_example_dataset
+
 # stage 1 (data process)
 # No --mixed_precision here, matching upstream: the pipeline is loaded with an
 # explicit torch_dtype=bfloat16, so Accelerate's mixed_precision setting does not
@@ -39,7 +41,6 @@ accelerate launch examples/minimax_h3/model_training/train.py \
   --task "sft:data_process"
 
 # stage 2 (train)
-# Select the optional partial-offload YAML with H3_FULL_ACCELERATE_CONFIG.
 accelerate launch --config_file examples-hcu/MiniMax-H3/configs/accelerate_zero3_hcu_partial_offload.yaml \
   examples/minimax_h3/model_training/train.py \
   --dataset_base_path ./models/train/MiniMax-H3-Ref2VA-full-hcu-split-cache \
