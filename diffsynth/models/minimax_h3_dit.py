@@ -399,7 +399,7 @@ class MiniMaxH3DiT(nn.Module):
         for block_id, block in enumerate(self.blocks):
             hidden = gradient_checkpoint_forward(
                 block,
-                use_gradient_checkpointing,
+                use_gradient_checkpointing and not getattr(block, "_h3_no_checkpoint", False),
                 use_gradient_checkpointing_offload,
                 hidden,
                 t_emb=t_emb,
