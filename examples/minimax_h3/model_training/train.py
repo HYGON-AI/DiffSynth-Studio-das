@@ -68,8 +68,8 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         )
         self.pipe.scheduler_audio.set_timesteps(1000, training=True)
 
-        fa_cpu_layers = int(os.environ.get("DIFFSYNTH_FA_CPU_CACHE_LAYERS", "0"))
-        fa_gpu_layers = int(os.environ.get("DIFFSYNTH_FA_GPU_CACHE_LAYERS", "0"))
+        from diffsynth.core.attention.h3_fa_cache import fa_cache_layers
+        fa_cpu_layers, fa_gpu_layers = fa_cache_layers(strict=not task.endswith(":data_process"))
         no_checkpoint_last = int(os.environ.get("DIFFSYNTH_H3_NO_CHECKPOINT_LAST_LAYERS", "0"))
         if not task.endswith(":data_process") and (fa_cpu_layers or fa_gpu_layers or no_checkpoint_last):
             if getattr(self.pipe, "dit", None) is None:

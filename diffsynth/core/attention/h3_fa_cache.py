@@ -18,6 +18,26 @@ from torch.autograd.function import once_differentiable
 
 _SCOPE = ContextVar("h3_fa_cache", default=None)
 _STREAMS = {}
+_LAYER_ENV_VARS = (
+    "DIFFSYNTH_FA_CPU_CACHE_LAYERS",
+    "DIFFSYNTH_FA_GPU_CACHE_LAYERS",
+)
+
+
+def fa_cache_layers(*, strict=False):
+    layers = []
+    for name in _LAYER_ENV_VARS:
+        raw = os.environ.get(name, "0")
+        try:
+            value = int(raw)
+            if value < 0:
+                raise ValueError
+        except ValueError:
+            if strict:
+                raise ValueError(f"{name} must be a non-negative integer, got {raw!r}") from None
+            value = 0
+        layers.append(value)
+    return tuple(layers)
 
 
 @lru_cache(None)
@@ -197,8 +217,7 @@ def cached_attention(q, k, v, cu_seqlens, max_seqlen, scale):
 
 
 def configure_fa_cache(dit, checkpointing, checkpoint_offload):
-    cpu_layers = int(os.environ.get("DIFFSYNTH_FA_CPU_CACHE_LAYERS", "0"))
-    gpu_layers = int(os.environ.get("DIFFSYNTH_FA_GPU_CACHE_LAYERS", "0"))
+    cpu_layers, gpu_layers = fa_cache_layers(strict=True)
     if cpu_layers and gpu_layers:
         raise ValueError("Enable CPU or GPU FA cache, not both")
     mode, layers = ("cpu", cpu_layers) if cpu_layers else ("gpu", gpu_layers)

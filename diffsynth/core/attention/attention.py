@@ -3,11 +3,9 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
 import torch, os, inspect
 from einops import rearrange, repeat
+from .h3_fa_cache import fa_cache_layers
 
-_H3_FA_CACHE_ENABLED = (
-    int(os.environ.get("DIFFSYNTH_FA_CPU_CACHE_LAYERS", "0")) > 0
-    or int(os.environ.get("DIFFSYNTH_FA_GPU_CACHE_LAYERS", "0")) > 0
-)
+_H3_FA_CACHE_ENABLED = any(layers > 0 for layers in fa_cache_layers())
 
 if os.environ.get("DIFFSYNTH_FLASH_ATTN_KERNEL_REPO_ID") is not None:
     try:
