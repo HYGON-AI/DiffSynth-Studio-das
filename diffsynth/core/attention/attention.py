@@ -3,6 +3,9 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
 import torch, os, inspect
 from einops import rearrange, repeat
+from .h3_fa_cache import fa_cache_layers
+
+_H3_FA_CACHE_ENABLED = any(layers > 0 for layers in fa_cache_layers())
 
 if os.environ.get("DIFFSYNTH_FLASH_ATTN_KERNEL_REPO_ID") is not None:
     try:
@@ -204,6 +207,11 @@ def attention_varlen_forward(
 ):
     """Compute independent packed attention segments without padding between them."""
     if ATTENTION_IMPLEMENTATION == "flash_attention_2":
+        if _H3_FA_CACHE_ENABLED:
+            from .h3_fa_cache import cached_attention
+            cached = cached_attention(q, k, v, cu_seqlens, max_seqlen, scale)
+            if cached is not None:
+                return cached
         out = flash_attn.flash_attn_varlen_func(
             q,
             k,
