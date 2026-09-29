@@ -42,7 +42,7 @@ accelerate launch examples/minimax_h3/model_training/train.py \
   --task "sft:data_process"
 
 # stage 2 (train)
-accelerate launch --config_file examples-hcu/MiniMax-H3/configs/accelerate_zero3_hcu_partial_offload.yaml \
+accelerate launch --config_file examples-hcu/MiniMax-H3/configs/accelerate_zero3_hcu_offload.yaml \
   examples/minimax_h3/model_training/train.py \
   --dataset_base_path ./models/train/MiniMax-H3-Ref2VA-full-hcu-split-cache \
   --data_file_keys "video,input_audio,references" \
