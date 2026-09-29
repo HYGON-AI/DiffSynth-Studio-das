@@ -4,7 +4,7 @@
 compute_environment: LOCAL_MACHINE
 debug: false
 deepspeed_config:
-  deepspeed_config_file: examples-hcu/MiniMax-H3/configs/deepspeed_zero3_hcu_partial_offload.json
+  deepspeed_config_file: examples-hcu/MiniMax-H3/configs/deepspeed_zero3_hcu_offload.json
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 enable_cpu_affinity: false
