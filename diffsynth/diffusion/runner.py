@@ -555,7 +555,11 @@ def launch_training_task(
             print(f"W&B performance metrics enabled: interval={perf_meter.interval}.")
 
     initialize_deepspeed_gradient_checkpointing(accelerator)
-    with maybe_enable_torch_profiler(accelerator, args) as torch_profiler:
+    with contextlib.ExitStack() as pipeline_stack, maybe_enable_torch_profiler(accelerator, args) as torch_profiler:
+        from .zero3_cpu_pipeline import create_cpu_adam_pipeline
+        cpu_pipeline = create_cpu_adam_pipeline(model)
+        if cpu_pipeline is not None:
+            pipeline_stack.callback(cpu_pipeline.close)
         for epoch_id in range(num_epochs):
             progress_bar = tqdm(dataloader) if accelerator.is_main_process else dataloader
             for step_id, data in enumerate(progress_bar):
