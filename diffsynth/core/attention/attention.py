@@ -27,8 +27,10 @@ except Exception:
 try:
     import flash_attn
     FLASH_ATTN_2_AVAILABLE = True
+    FLASH_ATTN_2_VARLEN_AVAILABLE = callable(getattr(flash_attn, "flash_attn_varlen_func", None))
 except Exception:
     FLASH_ATTN_2_AVAILABLE = False
+    FLASH_ATTN_2_VARLEN_AVAILABLE = False
 
 try:
     from sageattention import sageattn
@@ -199,8 +201,13 @@ def attention_varlen_forward(
     max_seqlen: int,
     scale=None,
 ):
-    """Compute independent packed attention segments without padding between them."""
-    if ATTENTION_IMPLEMENTATION == "flash_attention_2":
+    """Compute independent packed attention segments without padding between them.
+
+    FlashAttention's packed kernel is used only when the installed backend
+    exposes the varlen entry point. Other backends, including HCU backends,
+    retain the existing per-segment ``attention_forward`` route.
+    """
+    if ATTENTION_IMPLEMENTATION == "flash_attention_2" and FLASH_ATTN_2_VARLEN_AVAILABLE:
         out = flash_attn.flash_attn_varlen_func(
             q,
             k,
