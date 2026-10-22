@@ -19,10 +19,18 @@ except Exception:
     FLASH_ATTN_4_AVAILABLE = False
 
 try:
+    from flash_attn.cute import flash_attn_varlen_func as flash_attn_varlen_func_cute
+    FLASH_ATTN_4_VARLEN_AVAILABLE = True
+except Exception:
+    FLASH_ATTN_4_VARLEN_AVAILABLE = False
+
+try:
     import flash_attn_interface
     FLASH_ATTN_3_AVAILABLE = True
+    FLASH_ATTN_3_VARLEN_AVAILABLE = callable(getattr(flash_attn_interface, "flash_attn_varlen_func", None))
 except Exception:
     FLASH_ATTN_3_AVAILABLE = False
+    FLASH_ATTN_3_VARLEN_AVAILABLE = False
 
 try:
     import flash_attn
@@ -203,12 +211,20 @@ def attention_varlen_forward(
 ):
     """Compute independent packed attention segments without padding between them.
 
-    FlashAttention's packed kernel is used only when the installed backend
-    exposes the varlen entry point. Other backends, including HCU backends,
-    retain the existing per-segment ``attention_forward`` route.
+    A backend's packed kernel is used only when the installed FlashAttention
+    version exposes its varlen entry point. Other backends, including HCU
+    backends, retain the existing per-segment ``attention_forward`` route.
     """
-    if ATTENTION_IMPLEMENTATION == "flash_attention_2" and FLASH_ATTN_2_VARLEN_AVAILABLE:
-        out = flash_attn.flash_attn_varlen_func(
+    varlen_func = None
+    if ATTENTION_IMPLEMENTATION == "flash_attention_4" and FLASH_ATTN_4_VARLEN_AVAILABLE:
+        varlen_func = flash_attn_varlen_func_cute
+    elif ATTENTION_IMPLEMENTATION == "flash_attention_3" and FLASH_ATTN_3_VARLEN_AVAILABLE:
+        varlen_func = flash_attn_interface.flash_attn_varlen_func
+    elif ATTENTION_IMPLEMENTATION == "flash_attention_2" and FLASH_ATTN_2_VARLEN_AVAILABLE:
+        varlen_func = flash_attn.flash_attn_varlen_func
+
+    if varlen_func is not None:
+        out = varlen_func(
             q,
             k,
             v,
