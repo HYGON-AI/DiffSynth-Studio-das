@@ -1,7 +1,6 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
 # Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
-import contextlib
 import importlib
 import json
 import os
@@ -11,11 +10,9 @@ from accelerate import Accelerator
 from .training_module import DiffusionTrainingModule
 from .logger import ModelLogger
 from diffsynth.core import OffloadTrainingManager
-from diffsynth_hcu.cpu_adam import create_cpu_adam_pipeline
-from diffsynth_hcu.deepspeed_hip import configure_deepspeed_hip, install_zero3_lora_fetch
 from diffsynth_hcu.rng import set_training_rng_context
-from diffsynth_hcu.lora import install_lora_fast_paths
 from diffsynth_hcu.telemetry import PerformanceMeter, TrainingStepRecorder, maybe_enable_torch_profiler, _format_performance_metrics
+from diffsynth_hcu.training import install_prepared_model_adapters, training_lifetime
 
 
 def get_optimizer_class(customized_optimizer=None):
@@ -99,12 +96,7 @@ def launch_training_task(
     if limit is not None and limit < 1:
         raise ValueError("max_train_steps must be positive")
 
-    # Register cleanup before prepare or any subsequent installation can fail.
-    with contextlib.ExitStack() as lifetime:
-        configure_deepspeed_hip(accelerator)
-        lora_adapter = install_lora_fast_paths(model)
-        if lora_adapter is not None:
-            lifetime.callback(lora_adapter.close)
+    with training_lifetime(accelerator, model) as lifetime:
         optimizer_class = get_optimizer_class(customized_optimizer)
         optimizer = optimizer_class(model.trainable_modules(), lr=learning_rate, weight_decay=weight_decay)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda step: min(1.0, (step + 1) / max(1, warm_up_steps)))
@@ -120,12 +112,7 @@ def launch_training_task(
             model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
 
         initialize_deepspeed_gradient_checkpointing(accelerator)
-        fetch_handle = install_zero3_lora_fetch(accelerator, model)
-        if fetch_handle is not None:
-            lifetime.callback(fetch_handle.close)
-        cpu_pipeline = create_cpu_adam_pipeline(model)
-        if cpu_pipeline is not None:
-            lifetime.callback(cpu_pipeline.close)
+        install_prepared_model_adapters(lifetime, accelerator, model)
         enable_metrics = bool(getattr(model_logger, "enable_wandb_log", False) or getattr(args, "enable_wandb_log", False))
         perf_meter = PerformanceMeter(accelerator, model,
             interval=getattr(args, "performance_log_interval", 10),
