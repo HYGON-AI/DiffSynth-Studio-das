@@ -23,6 +23,7 @@ To keep the framework lightweight, the base installation only installs the neces
 * `[npu]`: For Ascend NPU devices with x86 architecture.
 * `[npu_aarch64]`: For Ascend NPU devices with aarch64/ARM architecture.
 * Dependencies of specific models
+   * `[controlnet]`: For the ControlNet annotator detectors (Canny, depth, OpenPose, etc.) used by the ControlNet examples under `examples/flux` and `examples/qwen_image`.
    * `[infiniteyou]`: https://arxiv.org/abs/2503.16418
    * `[ses]`: https://arxiv.org/abs/2602.03208
    * `[nexusgen]`: https://arxiv.org/pdf/2504.21356
@@ -31,35 +32,6 @@ To keep the framework lightweight, the base installation only installs the neces
 You can install multiple sets of dependencies with `pip install -e ".[audio,quant]"` or `pip install diffsynth[audio,quant]`.
 
 ## GPU/NPU Support
-
-### HCU
-
-HCU uses matching DTK and dependencies. A container image is recommended for training and testing.
-
-```bash
-# Pull the image and create the container
-export HCU_IMAGE=harbor.sourcefind.cn:5443/hcu/admin/base/custom:diffsynth-pytorch2100-ubuntu22.04-dtk26.04-py3.10
-docker pull "$HCU_IMAGE"
-docker run -d -t \
-  -v /opt/hyhal:/opt/hyhal:ro \
-  --workdir /data \
-  --privileged --shm-size=32G \
-  --device=/dev/kfd --device=/dev/dri/ --device=/dev/mkfd \
-  --network=host --group-add video \
-  --name diffsynth-hcu \
-  "$HCU_IMAGE"
-
-docker exec -it diffsynth-hcu bash
-
-# Install diffsynth
-cd /data
-git clone https://github.com/HYGON-AI/DiffSynth-Studio.git
-cd DiffSynth-Studio
-pip install -e .
-
-# Install dependencies
-pip install aiter==0.1.6+dtk2604.torch2100.2609161529.ge4d834 flash_attn==2.8.3+dtk2604.torch2100.2609161218.g1fcd1c -i https://pypi.sourcefind.cn/nightly/dtk/
-```
 
 ### NVIDIA GPU
 

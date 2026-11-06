@@ -9,7 +9,7 @@ from ..diffusion import FlowMatchScheduler
 from ..core import ModelConfig
 from ..diffusion.base_pipeline import BasePipeline, PipelineUnit
 from ..models.joyai_image_dit import JoyAIImageDiT
-from ..models.joyai_image_text_encoder import JoyAIImageTextEncoder
+from ..models.qwen_image_21_text_encoder import QwenImage21TextEncoder
 from ..models.wan_video_vae import WanVideoVAE
 
 class JoyAIImagePipeline(BasePipeline):
@@ -20,7 +20,7 @@ class JoyAIImagePipeline(BasePipeline):
             height_division_factor=16, width_division_factor=16,
         )
         self.scheduler = FlowMatchScheduler("Wan")
-        self.text_encoder: JoyAIImageTextEncoder = None
+        self.text_encoder: QwenImage21TextEncoder = None
         self.dit: JoyAIImageDiT = None
         self.vae: WanVideoVAE = None
         self.processor = None
@@ -49,7 +49,7 @@ class JoyAIImagePipeline(BasePipeline):
         pipe = JoyAIImagePipeline(device=device, torch_dtype=torch_dtype)
         model_pool = pipe.download_and_load_models(model_configs, vram_limit)
 
-        pipe.text_encoder = model_pool.fetch_model("joyai_image_text_encoder")
+        pipe.text_encoder = model_pool.fetch_model("qwen_image_21_text_encoder")
         pipe.dit = model_pool.fetch_model("joyai_image_dit")
         pipe.vae = model_pool.fetch_model("wan_video_vae")
 
@@ -159,7 +159,7 @@ class JoyAIImageUnit_PromptEmbedder(PipelineUnit):
             input_params_nega={"prompt": "negative_prompt", "positive": "positive"},
             input_params=("edit_image", "max_sequence_length"),
             output_params=("prompt_embeds", "prompt_embeds_mask"),
-            onload_model_names=("joyai_image_text_encoder",),
+            onload_model_names=("text_encoder",),
         )
 
     def process(self, pipe: "JoyAIImagePipeline", prompt, positive, edit_image, max_sequence_length):
@@ -204,8 +204,8 @@ class JoyAIImageUnit_EditImageEmbedder(PipelineUnit):
     def __init__(self):
         super().__init__(
             input_params=("edit_image", "tiled", "tile_size", "tile_stride", "height", "width"),
-            output_params=("ref_latents", "num_items", "is_multi_item"),
-            onload_model_names=("wan_video_vae",),
+            output_params=("ref_latents", "edit_image"),
+            onload_model_names=("vae",),
         )
 
     def process(self, pipe: "JoyAIImagePipeline", edit_image, tiled, tile_size, tile_stride, height, width):

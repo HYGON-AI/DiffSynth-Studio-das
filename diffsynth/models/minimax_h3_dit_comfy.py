@@ -1,10 +1,8 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
-import types
-
 import torch
 from torch import nn
 
-from .minimax_h3_dit import MiniMaxH3AdalnProj, MiniMaxH3DiT, _sdpa_varlen_attention
+from .minimax_h3_dit import MiniMaxH3AdalnProj, MiniMaxH3DiT
 
 
 class MiniMaxH3ComfyPrunedAdalnProj(MiniMaxH3AdalnProj):
@@ -13,25 +11,6 @@ class MiniMaxH3ComfyPrunedAdalnProj(MiniMaxH3AdalnProj):
         m = x.shape[0]
         x = x.view(m * self.modality_num, self.expand_ratio * self.hidden_size)
         return tuple(x.chunk(self.expand_ratio, dim=-1))
-
-
-def _comfy_attention_forward(self, x, *, rope_freqs, cu_seqlens, max_seqlen=None):
-    total = x.shape[0]
-    qkv = self.qkv_proj(x)
-    qkv = qkv.view(total, 3, self.num_heads, self.head_dim)
-    q, k, v = qkv.unbind(dim=1)
-    q = self.q_norm(q, rope_freqs)
-    k = self.k_norm(k, rope_freqs)
-    out = _sdpa_varlen_attention(
-        q,
-        k,
-        v,
-        cu_seqlens=cu_seqlens,
-        softmax_scale=self.softmax_scale,
-        max_seqlen=max_seqlen,
-    )
-    out = out.reshape(total, self.num_heads * self.head_dim)
-    return self.out_proj(out)
 
 
 class MiniMaxH3ComfyPrunedTimeEmbedder(nn.Module):
@@ -64,9 +43,9 @@ class MiniMaxH3DiTComfy(MiniMaxH3DiT):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         for block in self.blocks:
-            block.attn.forward = types.MethodType(_comfy_attention_forward, block.attn)
+            block.attn.qkv_layout = "comfy"
         for block in self.token_refiner.blocks:
-            block.attn.forward = types.MethodType(_comfy_attention_forward, block.attn)
+            block.attn.qkv_layout = "comfy"
 
 
 class MiniMaxH3DiTComfyPruned(MiniMaxH3DiTComfy):

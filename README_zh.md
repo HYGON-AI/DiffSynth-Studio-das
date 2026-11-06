@@ -1,5 +1,7 @@
 # DiffSynth-Studio
 
+> HYGON HCU 分支：[环境与优化说明](docs/hcu/README.md) · [上游升级流程](docs/hcu/UPSTREAM_UPGRADES.md)。
+
 <a href="https://github.com/modelscope/DiffSynth-Studio"><img src=".github/workflows/logo.gif" title="Logo" style="max-width:100%;" width="55" /></a> <a href="https://trendshift.io/repositories/10946" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10946" alt="modelscope%2FDiffSynth-Studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
 
 [![PyPI](https://img.shields.io/pypi/v/DiffSynth)](https://pypi.org/project/DiffSynth/)
@@ -10,21 +12,6 @@
 [![Discord](https://badgen.net//discord/members/Mm9suEeUDc)](https://discord.gg/Mm9suEeUDc)
 
 [Switch to English](./README.md)
-
-## 🏷️ 上游归属
-
-本项目基于上游 [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) 进行 HCU 适配与优化。
-
-- 上游仓库：[https://github.com/modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio)
-- 上游分支：`main`
-- 上游 Commit：`4dbf980d4d0eb34eda136300dd0d72014cff8965`
-- 上游许可证：[Apache-2.0](LICENSE)
-
-Modified by Hygon Information Technology Co., Ltd.
-
-## HCU 版本
-
-本仓库是 DiffSynth-Studio-das 的 HCU 适配版本。[环境配置](docs/zh/Pipeline_Usage/Setup.md#hcu) · [训练脚本](examples-hcu/MiniMax-H3/)
 
 ## 简介
 
@@ -45,6 +32,7 @@ Modified by Hygon Information Technology Co., Ltd.
 
 查看更多：
 
+* [DiffSynth-ComfyUI](https://github.com/modelscope/DiffSynth-ComfyUI): 基于 DiffSynth-Studio 构建的 [ComfyUI](https://github.com/Comfy-Org/ComfyUI) 节点包，可在 ComfyUI 中构建 Workflow 运行模型推理。
 * [DiffSynth-WebUI](https://github.com/modelscope/DiffSynth-WebUI): 基于 DiffSynth-Studio 构建的轻量化 LoRA 训练工具，可在消费级 GPU 上训练 LoRA 模型。
 * [魔搭社区 AIGC 专区 (面向中国用户)](https://modelscope.cn/aigc/home): 以 DiffSynth-Studio 为核心推理和训练引擎的产品化功能，体验开源模型生态的丰富潜力。
 * [ModelScope Civision (for global users)](https://modelscope.ai/civision/home): Unlock the vast potential of the open-source model ecosystem through productized capabilities powered by DiffSynth-Studio.
@@ -55,6 +43,36 @@ Modified by Hygon Information Technology Co., Ltd.
 
 > 目前本项目的开发人员有限，大部分工作由 [Artiprocher](https://github.com/Artiprocher) 和 [mi804](https://github.com/mi804) 负责，因此新功能的开发进展会比较缓慢，issue 的回复和解决速度有限，我们对此感到非常抱歉，请各位开发者理解。
 
+- **2026年10月21日** 我们已支持 Fibo 2.0，包含统一的文生图与图像编辑推理、掩码编辑、多参考图像编辑、文字渲染、低显存推理，以及 [Fibo-2.0-dev](https://www.modelscope.cn/models/briaai/Fibo-2.0-dev) 在文生图和图像编辑任务上的 LoRA 与全量训练。详情请参考[文档](/docs/zh/Model_Details/Fibo.md)和[示例代码](/examples/fibo/)。
+
+- **2026年10月20日** 我们已支持 MOSS-Image，包含 [MOSS-Image-Base](https://modelscope.cn/models/openmoss/MOSS-Image-Base) 和 [MOSS-Image-SFT](https://modelscope.cn/models/openmoss/MOSS-Image-SFT) 的推理和训练。另外，我们也提供了 [EntroPack 低位量化模型](https://www.modelscope.cn/models/DiffSynth-Studio/MOSS-Image-EntroPack)，最低支持 4G 显存运行 3.5bit 的量化压缩模型；以及通过 [OPD 蒸馏加速](https://diffsynth-studio-doc.readthedocs.io/en/latest/Training/Distillation.html)训练的[加速模型](https://modelscope.cn/models/DiffSynth-Studio/MOSS-Image-SFT-TurboLoRA)，支持 8 步极速推理。
+
+- **2026年10月16日** flux-3-image-klein 开源，欢迎加入图像生成模型家族！支持文生图、多参考图像编辑、布局控制、低显存推理和 Base 训练能力。详情请参考[文档](/docs/zh/Model_Details/FLUX.3.md)和[示例代码](/examples/flux3/)。我们使用 [EntroPack](https://github.com/modelscope/entropack) 对模型进行了量化，提供了 3bit、4bit、6bit 几个版本的预量化模型：[DiffSynth-Studio/flux-3-image-klein-entropack](https://www.modelscope.cn/models/DiffSynth-Studio/flux-3-image-klein-entropack)。
+
+- **2026年10月12日** 我们已支持基于 OPD（On-Policy Distillation）的蒸馏加速训练，现在能够以极低的成本对模型进行蒸馏加速，详见[蒸馏加速训练](./docs/zh/Training/Distillation.md)。
+
+- **2026年9月29日** 我们开源了 EntroPack——面向 PyTorch 的通用张量压缩库，支持逐位精确恢复的无损压缩和按目标码率控制体积的有损压缩，并提供 GPU 编解码能力。它已作为量化后端接入 DiffSynth-Studio，可在推理与 LoRA 训练中按任意目标码率压缩模型权重。更多信息请参考：
+
+  * 项目主页：https://github.com/modelscope/entropack
+  * 技术报告：https://arxiv.org/abs/2609.34185
+  * 预量化模型：https://www.modelscope.cn/collections/DiffSynth-Studio/EntroPack-Quantized-Models
+  * 示例代码：[Z-Image-Turbo](/examples/z_image/model_inference_low_vram/Z-Image-Turbo-EntroPack.py)、[Qwen-Image-2.1](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1-EntroPack.py)、[MiniMax-H3](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-EntroPack.py)、[LoRA 训练示例](/examples/z_image/model_training/special/quant_training/Z-Image-Turbo-entropack_lossy_quant.sh)
+
+- **2026年9月20日** Qwen-Image-2.1 开源，模型支持文生图、图像编辑、带透明通道的 RGBA 输出，DiffSynth-Studio 已为其提供全面支持。详情请参考[文档](/docs/zh/Model_Details/Qwen-Image-2.1.md)和[示例代码](/examples/qwen_image_21/)。
+
+- **2026年9月14日** 我们训练并开源了 DiffSynth-Music，基于 ACE-Step 的音乐可控生成模型，支持 Beats、Vocals、Accompany、Prosody、Reference 五种控制方式。更多信息请参考：
+    * 模型：https://modelscope.cn/models/DiffSynth-Studio/DiffSynth-Music
+    * 技术报告：https://arxiv.org/abs/2609.12774
+    * 代码：[./examples/diffsynth_music/](./examples/diffsynth_music/)
+
+- **2026年9月11日** 我们已支持 YuE2，一个新的音乐生成模型。详情请参考[文档](/docs/zh/Model_Details/YuE2.md)和[示例代码](/examples/yue2/)。
+
+- **2026年9月10日** 我们接入了 [LTX-2.5](https://modelscope.cn/models/Lightricks/LTX-2.5)，这是 Lightricks 最新的音视频联合生成模型。支持的功能包括自动时长预测的文生音视频、关键帧插值的图生音视频、音频驱动视频、音视频区域重生成、IC-LoRA 像素空间上采样、文生音频、INT8 量化推理、低显存推理以及模型训练。详情请参考[文档](/docs/zh/Model_Details/LTX-2.md)和[示例代码](/examples/ltx2/)。
+
+- **2026年9月10日** 我们开源了 [DiffSynth-ComfyUI](https://github.com/modelscope/DiffSynth-ComfyUI)，现在，你可以在 [ComfyUI](https://github.com/Comfy-Org/ComfyUI) 中使用 DiffSynth-Studio 运行模型推理了。
+
+- **2026年9月8日** 我们为 CFG 蒸馏的 MiniMax-H3 基座训练了 [MiniMax-H3 Training Adapter](https://www.modelscope.cn/models/DiffSynth-Studio/MiniMax-H3-TrainingAdapter)，这是一个 DeCFG LoRA 训练 Adapter，提供 FL2VA 与 Ref2VA 两个版本。训练数据来自自生成数据集 [MiniMax-H3-Self-Generated-Dataset](https://www.modelscope.cn/datasets/DiffSynth-Studio/MiniMax-H3-Self-Generated-Dataset)。基于该 Adapter，我们训练了两个 toy 模型，[MiniMax-H3-Songyu-LoRA](https://www.modelscope.cn/models/mibei0804/MiniMax-H3-Songyu-LoRA)（角色身份，FL2VA）与 [MiniMax-H3-Ref2VA-FirstFrame-Lineart](https://www.modelscope.cn/models/mibei0804/MiniMax-H3-Ref2VA-FirstFrame-Lineart)（线稿首帧控制，Ref2VA），供推理与微调参考。
+
 - **2026年9月1日** 我们接入了 [SenseNova-U1.5](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT)，这是商汤科技开源的统一多模态模型，我们为其提供了文生图、图像编辑、低显存推理和训练支持。详情请参考[文档](/docs/zh/Model_Details/SenseNova-U1.md)和[示例代码](/examples/sensenova_u1/)。
 
 - **2026年8月31日** 我们接入了 [Qwen-Video-Edit](https://modelscope.cn/models/yunpeng1998/Qwen-Video-Edit)，这是开源社区用户 [yunpeng1998](https://github.com/yunpeng1998) 基于图像编辑模型 Qwen-Image-Edit 训练的视频编辑模型，是探索模型能力拓展的优秀案例。
@@ -62,6 +80,9 @@ Modified by Hygon Information Technology Co., Ltd.
 - **2026年8月25日** 我们开源了 [DiffSynth-WebUI](https://github.com/modelscope/DiffSynth-WebUI)，一键私有化部署 LoRA 训练服务，与模型参数量化功能结合，用消费级 GPU 也能训练超大模型。
 
 - **2026年8月19日** 我们发布了模型量化功能。它提供了统一的 `QuantizeConfig` 入口，支持 bitsandbytes、torchao、comfy-kitchen 等多种量化后端，具备在线量化、加载预量化权重、混合量化、保存量化模型、量化 + LoRA 训练等能力。详情请参考[文档](/docs/zh/Pipeline_Usage/Quantization.md)。
+
+<details>
+<summary>更多</summary>
 
 - **2026年8月17日** MiniMax-Music3 开源，欢迎加入音频生成模型家族！支持文生音乐推理和低显存推理能力。详情请参考[文档](/docs/zh/Model_Details/MiniMax-Music3.md)和[示例代码](/examples/minimax_music3/)。
 
@@ -72,9 +93,6 @@ Modified by Hygon Information Technology Co., Ltd.
 - **2026年7月28日** LingBot-Video 开源，欢迎加入视频生成模型家族！本次开源包含 Dense-1.3B 和 MoE-30B-A3B 两个版本（MoE 版总参数量 30B、每个 token 激活约 3B），均支持文生视频、图生视频、文生图推理、低显存推理以及 LoRA / 全量训练能力。详情请参考[文档](/docs/zh/Model_Details/LingBot-Video.md)和[示例代码](/examples/lingbot_video/)。特别感谢 [NancyFyong](https://github.com/NancyFyong) 贡献了本模型的接入代码！
 
 - **2026年7月21日** 我们开源了 [DiffSynth-Studio Model Integration Skills](https://www.modelscope.cn/collections/DiffSynth-Studio/DiffSynth-Studio-Model-Integration-Skills)。这是一套可组合的 Agent Skill 合集，将外部扩散模型接入 DiffSynth-Studio 的全流程自动化，大幅提升模型接入标准化程度与效率。从[使用示例](https://www.modelscope.cn/skills/DiffSynth-Studio/diffsynth-integrator/file/view/master/example.md?status=1)开始体验吧！
-
-<details>
-<summary>更多</summary>
 
 - **2026年6月29日** Boogu-Image 开源，已支持文生图推理、图像编辑、低显存推理和训练能力。详情请参考[文档](/docs/zh/Model_Details/Boogu-Image.md)和[示例代码](/examples/boogu_image/)。
 
@@ -302,6 +320,10 @@ DiffSynth-Studio 作为基础的模型框架，为主流 Diffusion 模型重新�
 
 | 基础架构 | 模型 ID | 推理 | 低显存推理 | 全量训练 | 全量训练后验证 | LoRA 训练 | LoRA 训练后验证 |
 |-|-|-|-|-|-|-|-|
+| Fibo 2.0 | [briaai/Fibo-2.0-dev](https://www.modelscope.cn/models/briaai/Fibo-2.0-dev) | [code](/examples/fibo/model_inference/Fibo-2.0-dev.py) | [code](/examples/fibo/model_inference_low_vram/Fibo-2.0-dev.py) | [code](/examples/fibo/model_training/full/Fibo-2.0-dev-T2I.sh) | [code](/examples/fibo/model_training/validate_full/Fibo-2.0-dev-T2I.py) | [code](/examples/fibo/model_training/lora/Fibo-2.0-dev-T2I.sh) | [code](/examples/fibo/model_training/validate_lora/Fibo-2.0-dev-T2I.py) |
+| Fibo 2.0 | [briaai/Fibo-2.0-edit-turbo](https://www.modelscope.cn/models/briaai/Fibo-2.0-edit-turbo) | [code](/examples/fibo/model_inference/Fibo-2.0-edit-turbo.py) | [code](/examples/fibo/model_inference_low_vram/Fibo-2.0-edit-turbo.py) | - | - | - | - |
+| Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1](https://www.modelscope.cn/models/Qwen/Qwen-Image-2.1) | [code](/examples/qwen_image_21/model_inference/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_training/full/Qwen-Image-2.1.sh) | [code](/examples/qwen_image_21/model_training/validate_full/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_training/lora/Qwen-Image-2.1.sh) | [code](/examples/qwen_image_21/model_training/validate_lora/Qwen-Image-2.1.py) |
+| Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1-Turbo](https://www.modelscope.cn/models/Qwen/Qwen-Image-2.1-Turbo) | [code](/examples/qwen_image_21/model_inference/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_training/full/Qwen-Image-2.1-Turbo.sh) | [code](/examples/qwen_image_21/model_training/validate_full/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_training/lora/Qwen-Image-2.1-Turbo.sh) | [code](/examples/qwen_image_21/model_training/validate_lora/Qwen-Image-2.1-Turbo.py) |
 | MiniMax-H3 | [MiniMax/MiniMax-H3: FL2VA](https://www.modelscope.cn/models/MiniMax/MiniMax-H3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_training/full/MiniMax-H3-FL2VA.sh) | [code](/examples/minimax_h3/model_training/validate_full/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_training/lora/MiniMax-H3-FL2VA.sh) | [code](/examples/minimax_h3/model_training/validate_lora/MiniMax-H3-FL2VA.py) |
 | MiniMax-H3 | [DiffSynth-Studio/MiniMax-H3-NF4: FL2VA pruned](https://www.modelscope.cn/models/DiffSynth-Studio/MiniMax-H3-NF4) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-NF4-Pruned-FL2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-NF4-Pruned-FL2VA.py) | - | - | [code](/examples/minimax_h3/model_training/lora/MiniMax-H3-NF4-Pruned-FL2VA.sh) | [code](/examples/minimax_h3/model_training/validate_lora/MiniMax-H3-NF4-Pruned-FL2VA.py) |
 | ACE-Step | [ACE-Step/acestep-v15-xl-sft](https://www.modelscope.cn/models/ACE-Step/acestep-v15-xl-sft) | [code](/examples/ace_step/model_inference/acestep-v15-xl-sft.py) | [code](/examples/ace_step/model_inference_low_vram/acestep-v15-xl-sft.py) | [code](/examples/ace_step/model_training/full/acestep-v15-xl-sft.sh) | [code](/examples/ace_step/model_training/validate_full/acestep-v15-xl-sft.py) | [code](/examples/ace_step/model_training/lora/acestep-v15-xl-sft.sh) | [code](/examples/ace_step/model_training/validate_lora/acestep-v15-xl-sft.py) |
@@ -312,6 +334,10 @@ DiffSynth-Studio 作为基础的模型框架，为主流 Diffusion 模型重新�
 模型一览：
 
 - 图像生成
+    - Fibo 2.0：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Fibo.html)、[样例代码](/examples/fibo/)
+    - MOSS-Image：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/MOSS-Image.html)、[样例代码](/examples/moss_image/)
+    - FLUX.3：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/FLUX.3.html)、[样例代码](/examples/flux3/)
+    - Qwen-Image-2.1：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Qwen-Image-2.1.html)、[样例代码](/examples/qwen_image_21/)
     - SenseNova-U1：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/SenseNova-U1.html)、[样例代码](/examples/sensenova_u1/)
     - Boogu-Image：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Boogu-Image.html)、[样例代码](/examples/boogu_image/)
     - Krea-2：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Krea-2.html)、[样例代码](/examples/krea2/)
@@ -332,7 +358,9 @@ DiffSynth-Studio 作为基础的模型框架，为主流 Diffusion 模型重新�
     - LTX-2：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/LTX-2.html)、[样例代码](/examples/ltx2/)
     - Wan：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Wan.html)、[样例代码](/examples/wanvideo/)
 - 音频生成
+    - DiffSynth-Music：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/DiffSynth-Music.html)、[样例代码](/examples/diffsynth_music/)
     - MiniMax-Music3：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/MiniMax-Music3.html)、[样例代码](/examples/minimax_music3/)
+    - YuE2：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/YuE2.html)、[样例代码](/examples/yue2/)
     - ACE-Step：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/ACE-Step.html)、[样例代码](/examples/ace_step/)
 - 评测模型：[文档](https://diffsynth-studio-doc.readthedocs.io/zh-cn/latest/Model_Details/Image-Quality-Metrics.html)、[样例代码](/examples/image_quality_metric/)
 
@@ -341,6 +369,19 @@ DiffSynth-Studio 作为基础的模型框架，为主流 Diffusion 模型重新�
 ## 创新成果
 
 我们相信，一个完善的开源代码框架能够降低技术探索的门槛，我们基于这个代码库搞出了不少有意思的技术。或许你也有许多天马行空的构想，借助 DiffSynth-Studio，你可以快速实现这些想法。
+
+<details>
+<summary>EntroPack: 面向 PyTorch 的通用张量压缩库</summary>
+
+> 按任意目标码率压缩模型权重，GPU 编解码，压缩后的权重可直接用于推理与 LoRA 训练。
+
+* 项目主页：[GitHub](https://github.com/modelscope/entropack)
+* 技术报告：https://arxiv.org/abs/2609.34185
+* 预量化模型：[ModelScope](https://www.modelscope.cn/models/DiffSynth-Studio/EntroPackPreQuants)
+* 文档参考：[English Version](/docs/en/Pipeline_Usage/Quantization.md)、[中文版](/docs/zh/Pipeline_Usage/Quantization.md)
+* 示例代码：[Z-Image-Turbo](/examples/z_image/model_inference_low_vram/Z-Image-Turbo-EntroPack.py)、[Qwen-Image-2.1](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1-EntroPack.py)、[MiniMax-H3](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-EntroPack.py)、[LoRA 训练示例](/examples/z_image/model_training/special/quant_training/Z-Image-Turbo-entropack_lossy_quant.sh)
+
+</details>
 
 <details>
 <summary>TreeAdapter: 由结构化 LoRA 组建的模型系统</summary>
@@ -554,12 +595,25 @@ https://github.com/Artiprocher/DiffSynth-Studio/assets/35051019/59fb2f7b-8de0-44
 
 | 基础架构 | 模型 ID | 推理 | 低显存推理 | 全量训练 | 全量训练后验证 | LoRA 训练 | LoRA 训练后验证 |
 |-|-|-|-|-|-|-|-|
+| Fibo 2.0 | [briaai/Fibo-2.0-dev](https://www.modelscope.cn/models/briaai/Fibo-2.0-dev) | [code](/examples/fibo/model_inference/Fibo-2.0-dev.py) | [code](/examples/fibo/model_inference_low_vram/Fibo-2.0-dev.py) | [code](/examples/fibo/model_training/full/Fibo-2.0-dev-T2I.sh) | [code](/examples/fibo/model_training/validate_full/Fibo-2.0-dev-T2I.py) | [code](/examples/fibo/model_training/lora/Fibo-2.0-dev-T2I.sh) | [code](/examples/fibo/model_training/validate_lora/Fibo-2.0-dev-T2I.py) |
+| Fibo 2.0 | [briaai/Fibo-2.0-edit-turbo](https://www.modelscope.cn/models/briaai/Fibo-2.0-edit-turbo) | [code](/examples/fibo/model_inference/Fibo-2.0-edit-turbo.py) | [code](/examples/fibo/model_inference_low_vram/Fibo-2.0-edit-turbo.py) | - | - | - | - |
+| MOSS-Image | [openmoss/MOSS-Image-Base](https://www.modelscope.cn/models/openmoss/MOSS-Image-Base) | [code](/examples/moss_image/model_inference/MOSS-Image-Base.py) | [code](/examples/moss_image/model_inference_low_vram/MOSS-Image-Base.py) | [code](/examples/moss_image/model_training/full/MOSS-Image-Base.sh) | [code](/examples/moss_image/model_training/validate_full/MOSS-Image-Base.py) | [code](/examples/moss_image/model_training/lora/MOSS-Image-Base.sh) | [code](/examples/moss_image/model_training/validate_lora/MOSS-Image-Base.py) |
+| MOSS-Image | [openmoss/MOSS-Image-SFT](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT) | [code](/examples/moss_image/model_inference/MOSS-Image-SFT.py) | [code](/examples/moss_image/model_inference_low_vram/MOSS-Image-SFT.py) | [code](/examples/moss_image/model_training/full/MOSS-Image-SFT.sh) | [code](/examples/moss_image/model_training/validate_full/MOSS-Image-SFT.py) | [code](/examples/moss_image/model_training/lora/MOSS-Image-SFT.sh) | [code](/examples/moss_image/model_training/validate_lora/MOSS-Image-SFT.py) |
+| MOSS-Image | [DiffSynth-Studio/MOSS-Image-EntroPack](https://www.modelscope.cn/models/DiffSynth-Studio/MOSS-Image-EntroPack) | [code](/examples/moss_image/model_inference/MOSS-Image-EntroPack.py) | [code](/examples/moss_image/model_inference_low_vram/MOSS-Image-EntroPack.py) | - | - | [code](/examples/moss_image/model_training/lora/MOSS-Image-entropack.sh) | [code](/examples/moss_image/model_training/validate_lora/MOSS-Image-entropack.py) |
+| FLUX.3 | [black-forest-labs/flux-3-image-klein](https://www.modelscope.cn/models/black-forest-labs/flux-3-image-klein) | [code](/examples/flux3/model_inference/flux-3-image-klein.py) | [code](/examples/flux3/model_inference_low_vram/flux-3-image-klein.py) | [code](/examples/flux3/model_training/full/flux-3-image-klein.sh) | [code](/examples/flux3/model_training/validate_full/flux-3-image-klein.py) | [code](/examples/flux3/model_training/lora/flux-3-image-klein.sh) | [code](/examples/flux3/model_training/validate_lora/flux-3-image-klein.py) |
+| FLUX.3 | [black-forest-labs/flux-3-image-klein-base](https://www.modelscope.cn/models/black-forest-labs/flux-3-image-klein-base) | [code](/examples/flux3/model_inference/flux-3-image-klein-base.py) | [code](/examples/flux3/model_inference_low_vram/flux-3-image-klein-base.py) | [code](/examples/flux3/model_training/full/flux-3-image-klein-base.sh) | [code](/examples/flux3/model_training/validate_full/flux-3-image-klein-base.py) | [code](/examples/flux3/model_training/lora/flux-3-image-klein-base.sh) | [code](/examples/flux3/model_training/validate_lora/flux-3-image-klein-base.py) |
+| FLUX.3 | [DiffSynth-Studio/flux-3-image-klein-entropack](https://www.modelscope.cn/models/DiffSynth-Studio/flux-3-image-klein-entropack) | [code](/examples/flux3/model_inference/flux-3-image-klein-EntroPack.py) | [code](/examples/flux3/model_inference_low_vram/flux-3-image-klein-EntroPack.py) | - | - | [code](/examples/flux3/model_training/lora/flux-3-image-klein-entropack.sh) | [code](/examples/flux3/model_training/validate_lora/flux-3-image-klein-entropack.py) |
+| Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1](https://www.modelscope.cn/models/Qwen/Qwen-Image-2.1) | [code](/examples/qwen_image_21/model_inference/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_training/full/Qwen-Image-2.1.sh) | [code](/examples/qwen_image_21/model_training/validate_full/Qwen-Image-2.1.py) | [code](/examples/qwen_image_21/model_training/lora/Qwen-Image-2.1.sh) | [code](/examples/qwen_image_21/model_training/validate_lora/Qwen-Image-2.1.py) |
+| Qwen-Image-2.1 | [Qwen/Qwen-Image-2.1-Turbo](https://www.modelscope.cn/models/Qwen/Qwen-Image-2.1-Turbo) | [code](/examples/qwen_image_21/model_inference/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_training/full/Qwen-Image-2.1-Turbo.sh) | [code](/examples/qwen_image_21/model_training/validate_full/Qwen-Image-2.1-Turbo.py) | [code](/examples/qwen_image_21/model_training/lora/Qwen-Image-2.1-Turbo.sh) | [code](/examples/qwen_image_21/model_training/validate_lora/Qwen-Image-2.1-Turbo.py) |
+| Qwen-Image-2.1 | [PAI/Qwen-Image-2.1-Fun-Controlnet-Union](https://www.modelscope.cn/models/PAI/Qwen-Image-2.1-Fun-Controlnet-Union) | [code](/examples/qwen_image_21/model_inference/Qwen-Image-2.1-Fun-Controlnet-Union.py) | [code](/examples/qwen_image_21/model_inference_low_vram/Qwen-Image-2.1-Fun-Controlnet-Union.py) | [code](/examples/qwen_image_21/model_training/full/Qwen-Image-2.1-Fun-Controlnet-Union.sh) | [code](/examples/qwen_image_21/model_training/validate_full/Qwen-Image-2.1-Fun-Controlnet-Union.py) | [code](/examples/qwen_image_21/model_training/lora/Qwen-Image-2.1-Fun-Controlnet-Union.sh) | [code](/examples/qwen_image_21/model_training/validate_lora/Qwen-Image-2.1-Fun-Controlnet-Union.py) |
 | SenseNova-U1 | [SenseNova/SenseNova-U1.5-8B-MoT: T2I](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT) | [code](/examples/sensenova_u1/model_inference/SenseNova-U1.5-8B-MoT.py) | [code](/examples/sensenova_u1/model_inference_low_vram/SenseNova-U1.5-8B-MoT.py) | [code](/examples/sensenova_u1/model_training/full/SenseNova-U1.5-8B-MoT.sh) | [code](/examples/sensenova_u1/model_training/validate_full/SenseNova-U1.5-8B-MoT.py) | [code](/examples/sensenova_u1/model_training/lora/SenseNova-U1.5-8B-MoT.sh) | [code](/examples/sensenova_u1/model_training/validate_lora/SenseNova-U1.5-8B-MoT.py) |
 | SenseNova-U1 | [SenseNova/SenseNova-U1.5-8B-MoT: Edit](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT) | [code](/examples/sensenova_u1/model_inference/SenseNova-U1.5-8B-MoT-Edit.py) | [code](/examples/sensenova_u1/model_inference_low_vram/SenseNova-U1.5-8B-MoT-Edit.py) | [code](/examples/sensenova_u1/model_training/full/SenseNova-U1.5-8B-MoT-Edit.sh) | [code](/examples/sensenova_u1/model_training/validate_full/SenseNova-U1.5-8B-MoT-Edit.py) | [code](/examples/sensenova_u1/model_training/lora/SenseNova-U1.5-8B-MoT-Edit.sh) | [code](/examples/sensenova_u1/model_training/validate_lora/SenseNova-U1.5-8B-MoT-Edit.py) |
 | SenseNova-U1 | [SenseNova/SenseNova-U1.5-8B-MoT-LoRAs: 8-step](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT-LoRAs) | [code](/examples/sensenova_u1/model_inference/SenseNova-U1.5-8B-MoT-LoRA-8step.py) | [code](/examples/sensenova_u1/model_inference_low_vram/SenseNova-U1.5-8B-MoT-LoRA-8step.py) | - | - | - | - |
 | SenseNova-U1 | [SenseNova/SenseNova-U1.5-8B-MoT-SFT: T2I](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT-SFT) | [code](/examples/sensenova_u1/model_inference/SenseNova-U1.5-8B-MoT-SFT.py) | [code](/examples/sensenova_u1/model_inference_low_vram/SenseNova-U1.5-8B-MoT-SFT.py) | [code](/examples/sensenova_u1/model_training/full/SenseNova-U1.5-8B-MoT-SFT.sh) | [code](/examples/sensenova_u1/model_training/validate_full/SenseNova-U1.5-8B-MoT-SFT.py) | [code](/examples/sensenova_u1/model_training/lora/SenseNova-U1.5-8B-MoT-SFT.sh) | [code](/examples/sensenova_u1/model_training/validate_lora/SenseNova-U1.5-8B-MoT-SFT.py) |
 | SenseNova-U1 | [SenseNova/SenseNova-U1.5-8B-MoT-SFT: Edit](https://www.modelscope.cn/models/SenseNova/SenseNova-U1.5-8B-MoT-SFT) | [code](/examples/sensenova_u1/model_inference/SenseNova-U1.5-8B-MoT-SFT-Edit.py) | [code](/examples/sensenova_u1/model_inference_low_vram/SenseNova-U1.5-8B-MoT-SFT-Edit.py) | [code](/examples/sensenova_u1/model_training/full/SenseNova-U1.5-8B-MoT-SFT-Edit.sh) | [code](/examples/sensenova_u1/model_training/validate_full/SenseNova-U1.5-8B-MoT-SFT-Edit.py) | [code](/examples/sensenova_u1/model_training/lora/SenseNova-U1.5-8B-MoT-SFT-Edit.sh) | [code](/examples/sensenova_u1/model_training/validate_lora/SenseNova-U1.5-8B-MoT-SFT-Edit.py) |
 | MiniMax-Music3 | [MiniMax/MiniMax-Music3](https://www.modelscope.cn/models/MiniMax/MiniMax-Music3) | [code](/examples/minimax_music3/model_inference/MiniMax-Music3.py) | [code](/examples/minimax_music3/model_inference_low_vram/MiniMax-Music3.py) | — | — | — | — |
+| YuE2 | [m-a-p/YuE2-3B](https://www.modelscope.cn/models/m-a-p/YuE2-3B) | [code](/examples/yue2/model_inference/YuE2.py) | [code](/examples/yue2/model_inference_low_vram/YuE2.py) | — | — | — | — |
+| DiffSynth-Music | [DiffSynth-Studio/DiffSynth-Music](https://www.modelscope.cn/models/DiffSynth-Studio/DiffSynth-Music) | [code](/examples/diffsynth_music/model_inference/DiffSynth-Music.py) | [code](/examples/diffsynth_music/model_inference_low_vram/DiffSynth-Music.py) | [code](/examples/diffsynth_music/model_training/full/DiffSynth-Music.sh) | [code](/examples/diffsynth_music/model_training/validate_full/DiffSynth-Music.py) | - | - |
 | MiniMax-H3 | [MiniMax/MiniMax-H3: FL2VA](https://www.modelscope.cn/models/MiniMax/MiniMax-H3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_training/full/MiniMax-H3-FL2VA.sh) | [code](/examples/minimax_h3/model_training/validate_full/MiniMax-H3-FL2VA.py) | [code](/examples/minimax_h3/model_training/lora/MiniMax-H3-FL2VA.sh) | [code](/examples/minimax_h3/model_training/validate_lora/MiniMax-H3-FL2VA.py) |
 | MiniMax-H3 | [MiniMax/MiniMax-H3: Ref2VA](https://www.modelscope.cn/models/MiniMax/MiniMax-H3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-Ref2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-Ref2VA.py) | [code](/examples/minimax_h3/model_training/full/MiniMax-H3-Ref2VA.sh) | [code](/examples/minimax_h3/model_training/validate_full/MiniMax-H3-Ref2VA.py) | [code](/examples/minimax_h3/model_training/lora/MiniMax-H3-Ref2VA.sh) | [code](/examples/minimax_h3/model_training/validate_lora/MiniMax-H3-Ref2VA.py) |
 | MiniMax-H3 | [MiniMax/MiniMax-H3: Retake](https://www.modelscope.cn/models/MiniMax/MiniMax-H3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-Retake.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-Retake.py) | - | - | - | - |
@@ -578,6 +632,10 @@ https://github.com/Artiprocher/DiffSynth-Studio/assets/35051019/59fb2f7b-8de0-44
 | MiniMax-H3 | [lightx2v/Minimax-h3-Turbo: FL2VA 4steps](https://www.modelscope.cn/models/lightx2v/Minimax-h3-Turbo) | [code](https://github.com/modelscope/DiffSynth-Studio/blob/main/examples/minimax_h3/model_inference/MiniMax-H3-FL2VA-Turbo.py) | [code](https://github.com/modelscope/DiffSynth-Studio/blob/main/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-FL2VA-Turbo.py) | - | - | - | - |
 | MiniMax-H3 | [DiffSynth-Studio/MiniMax-H3-Text-Embeddings](https://www.modelscope.cn/models/DiffSynth-Studio/MiniMax-H3-Text-Embeddings) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-Text-Embeddings.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-Text-Embeddings.py) | [code](/examples/minimax_h3/model_training/full/MiniMax-H3-Text-Embeddings.sh) | [code](/examples/minimax_h3/model_training/validate_full/MiniMax-H3-Text-Embeddings.py) | - | - |
 | MiniMax-H3 | [PAI/MiniMax-H3-Fun-Controlnet-Union](https://www.modelscope.cn/models/PAI/MiniMax-H3-Fun-Controlnet-Union) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-Fun-Controlnet-Union.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-Fun-Controlnet-Union.py) | [code](/examples/minimax_h3/model_training/full/MiniMax-H3-Fun-Controlnet-Union.sh) | [code](/examples/minimax_h3/model_training/validate_full/MiniMax-H3-Fun-Controlnet-Union.py) | [code](/examples/minimax_h3/model_training/lora/MiniMax-H3-Fun-Controlnet-Union.sh) | [code](/examples/minimax_h3/model_training/validate_lora/MiniMax-H3-Fun-Controlnet-Union.py) |
+| MiniMax-H3 | [OpenVDN/vdn-minimax-h3: VDN-H3 50 步](https://www.modelscope.cn/models/OpenVDN/vdn-minimax-h3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-VDN-FL2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-VDN-FL2VA.py) | - | - | - | - |
+| MiniMax-H3 | [OpenVDN/vdn-minimax-h3: VDN-H3 8 步](https://www.modelscope.cn/models/OpenVDN/vdn-minimax-h3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-VDN-Turbo-FL2VA.py) | [code](/examples/minimax_h3/model_inference_low_vram/MiniMax-H3-VDN-Turbo-FL2VA.py) | - | - | - | - |
+| MiniMax-H3 | [OpenVDN/vdn-minimax-h3: VDN-H3 FP8](https://www.modelscope.cn/models/OpenVDN/vdn-minimax-h3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-VDN-FP8-FL2VA.py) | - | - | - | - | - |
+| MiniMax-H3 | [OpenVDN/vdn-minimax-h3: VDN-H3 8 步 FP8](https://www.modelscope.cn/models/OpenVDN/vdn-minimax-h3) | [code](/examples/minimax_h3/model_inference/MiniMax-H3-VDN-Turbo-FP8-FL2VA.py) | - | - | - | - | - |
 | LingBot-Video | [Robbyant/lingbot-video-dense-1.3b: T2V](https://modelscope.cn/models/Robbyant/lingbot-video-dense-1.3b) | [code](/examples/lingbot_video/model_inference/lingbot-video-dense-1.3b_t2v.py) | [code](/examples/lingbot_video/model_inference_low_vram/lingbot-video-dense-1.3b_t2v.py) | [code](/examples/lingbot_video/model_training/full/lingbot-video-dense-1.3b_t2v.sh) | [code](/examples/lingbot_video/model_training/validate_full/lingbot-video-dense-1.3b_t2v.py) | [code](/examples/lingbot_video/model_training/lora/lingbot-video-dense-1.3b_t2v.sh) | [code](/examples/lingbot_video/model_training/validate_lora/lingbot-video-dense-1.3b_t2v.py) |
 | LingBot-Video | [Robbyant/lingbot-video-dense-1.3b: TI2V](https://modelscope.cn/models/Robbyant/lingbot-video-dense-1.3b) | [code](/examples/lingbot_video/model_inference/lingbot-video-dense-1.3b_ti2v.py) | [code](/examples/lingbot_video/model_inference_low_vram/lingbot-video-dense-1.3b_ti2v.py) | [code](/examples/lingbot_video/model_training/full/lingbot-video-dense-1.3b_ti2v.sh) | [code](/examples/lingbot_video/model_training/validate_full/lingbot-video-dense-1.3b_ti2v.py) | [code](/examples/lingbot_video/model_training/lora/lingbot-video-dense-1.3b_ti2v.sh) | [code](/examples/lingbot_video/model_training/validate_lora/lingbot-video-dense-1.3b_ti2v.py) |
 | LingBot-Video | [Robbyant/lingbot-video-dense-1.3b: T2I](https://modelscope.cn/models/Robbyant/lingbot-video-dense-1.3b) | [code](/examples/lingbot_video/model_inference/lingbot-video-dense-1.3b_t2i.py) | [code](/examples/lingbot_video/model_inference_low_vram/lingbot-video-dense-1.3b_t2i.py) | - | - | - | - |
@@ -611,6 +669,13 @@ https://github.com/Artiprocher/DiffSynth-Studio/assets/35051019/59fb2f7b-8de0-44
 | JoyAI-Image | [jd-opensource/JoyAI-Image-Edit](https://modelscope.cn/models/jd-opensource/JoyAI-Image-Edit) | [code](/examples/joyai_image/model_inference/JoyAI-Image-Edit.py) | [code](/examples/joyai_image/model_inference_low_vram/JoyAI-Image-Edit.py) | [code](/examples/joyai_image/model_training/full/JoyAI-Image-Edit.sh) | [code](/examples/joyai_image/model_training/validate_full/JoyAI-Image-Edit.py) | [code](/examples/joyai_image/model_training/lora/JoyAI-Image-Edit.sh) | [code](/examples/joyai_image/model_training/validate_lora/JoyAI-Image-Edit.py) |
 | ERNIE-Image | [PaddlePaddle/ERNIE-Image](https://www.modelscope.cn/models/PaddlePaddle/ERNIE-Image) | [code](/examples/ernie_image/model_inference/ERNIE-Image.py) | [code](/examples/ernie_image/model_inference_low_vram/ERNIE-Image.py) | [code](/examples/ernie_image/model_training/full/ERNIE-Image.sh) | [code](/examples/ernie_image/model_training/validate_full/ERNIE-Image.py) | [code](/examples/ernie_image/model_training/lora/ERNIE-Image.sh) | [code](/examples/ernie_image/model_training/validate_lora/ERNIE-Image.py) |
 | ERNIE-Image | [PaddlePaddle/ERNIE-Image-Turbo](https://www.modelscope.cn/models/PaddlePaddle/ERNIE-Image-Turbo) | [code](/examples/ernie_image/model_inference/ERNIE-Image-Turbo.py) | [code](/examples/ernie_image/model_inference_low_vram/ERNIE-Image-Turbo.py) | — | — | — | — |
+| LTX-2.5 | [Lightricks/LTX-2.5: DistilledPipeline-T2AV](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-T2AV-DistilledPipeline.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-T2AV-DistilledPipeline.py) | [code](/examples/ltx2/model_training/full/LTX-2.5-T2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_full/LTX-2.5-T2AV.py) | [code](/examples/ltx2/model_training/lora/LTX-2.5-T2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_lora/LTX-2.5-T2AV.py) |
+| LTX-2.5 | [Lightricks/LTX-2.5: DistilledPipeline-I2AV](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-I2AV-DistilledPipeline.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-I2AV-DistilledPipeline.py) | - | - | - | - |
+| LTX-2.5 | [Lightricks/LTX-2.5: TwoStagePipeline-A2V](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-A2V-TwoStage.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-A2V-TwoStage.py) | - | - | - | - |
+| LTX-2.5 | [Lightricks/LTX-2.5: TwoStagePipeline-Retake](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-T2AV-TwoStage-Retake.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-T2AV-TwoStage-Retake.py) | - | - | - | - |
+| LTX-2.5 | [Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler](https://www.modelscope.cn/models/Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler) | [code](/examples/ltx2/model_inference/LTX-2.5-IC-LoRA-Pixel-Spatial-Upscaler.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-IC-LoRA-Pixel-Spatial-Upscaler.py) | - | - | - | - |
+| LTX-2.5 | [Lightricks/LTX-2.5: T2A](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-T2A.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-T2A.py) | - | - | - | - |
+| LTX-2.5 | [Lightricks/LTX-2.5: INT8-ConvRot](https://www.modelscope.cn/models/Lightricks/LTX-2.5) | [code](/examples/ltx2/model_inference/LTX-2.5-T2AV-INT8-ConvRot.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.5-T2AV-INT8-ConvRot.py) | - | - | [code](/examples/ltx2/model_training/lora/LTX-2.5-Int8-ConvRot-splited.sh) | [code](/examples/ltx2/model_training/validate_lora/LTX-2.5-Int8-ConvRot.py) |
 | LTX-2 | [jd-opensource/JoyAI-Echo](https://modelscope.cn/models/jd-opensource/JoyAI-Echo) | [code](/examples/ltx2/model_inference/JoyAI-Echo-T2AV.py) | [code](/examples/ltx2/model_inference_low_vram/JoyAI-Echo-T2AV.py) | [code](/examples/ltx2/model_training/full/JoyAI-Echo-T2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_full/JoyAI-Echo-T2AV.py) | [code](/examples/ltx2/model_training/lora/JoyAI-Echo-T2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_lora/JoyAI-Echo-T2AV.py) |
 | LTX-2 | [Lightricks/LTX-2.3: OneStagePipeline-I2AV](https://www.modelscope.cn/models/Lightricks/LTX-2.3) | [code](/examples/ltx2/model_inference/LTX-2.3-I2AV-OneStage.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.3-I2AV-OneStage.py) | [code](/examples/ltx2/model_training/full/LTX-2.3-I2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_full/LTX-2.3-I2AV.py) | [code](/examples/ltx2/model_training/lora/LTX-2.3-I2AV-splited.sh) | [code](/examples/ltx2/model_training/validate_lora/LTX-2.3-I2AV.py) |
 | LTX-2 | [Lightricks/LTX-2.3: TwoStagePipeline-I2AV](https://www.modelscope.cn/models/Lightricks/LTX-2.3) | [code](/examples/ltx2/model_inference/LTX-2.3-I2AV-TwoStage.py) | [code](/examples/ltx2/model_inference_low_vram/LTX-2.3-I2AV-TwoStage.py) | - | - | - | - |

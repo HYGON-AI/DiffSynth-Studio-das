@@ -1,12 +1,10 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
+import sys
 import torch
 
 
-try:
-    import deepspeed
-    _HAS_DEEPSPEED = True
-except ModuleNotFoundError:
-    _HAS_DEEPSPEED = False
+def get_deepspeed():
+    return sys.modules.get("deepspeed")
 
 
 def create_custom_forward(module):
@@ -38,18 +36,17 @@ def gradient_checkpoint_forward(
     **kwargs,
 ):
     fa_cache = None
-    fa_cache_mode = getattr(model, "_h3_fa_cache_mode", None)
-    if fa_cache_mode is not None:
-        if not (use_gradient_checkpointing and _HAS_DEEPSPEED and deepspeed.checkpointing.is_configured()):
-            raise RuntimeError("H3 FA cache requires configured DeepSpeed reentrant checkpointing")
-        from ..attention.h3_fa_cache import FACheckpointCache
+    fa_cache_mode = getattr(model, "_hcu_fa_cache_mode", None)
+    deepspeed = get_deepspeed() if use_gradient_checkpointing else None
+    if (fa_cache_mode is not None and torch.version.hip is not None
+            and not use_gradient_checkpointing_offload
+            and deepspeed is not None and deepspeed.checkpointing.is_configured()):
+        from diffsynth_hcu.fa_cache_impl import FACheckpointCache
         fa_cache = FACheckpointCache(mode=fa_cache_mode)
-    if use_gradient_checkpointing and _HAS_DEEPSPEED and deepspeed.checkpointing.is_configured():
+    if use_gradient_checkpointing and deepspeed is not None and deepspeed.checkpointing.is_configured():
         kwarg_keys = tuple(kwargs)
         all_args = args + tuple(kwargs.values())
         if not judge_args_requires_grad(*all_args):
-            if fa_cache is not None:
-                raise RuntimeError("H3 FA cache checkpoint inputs must require gradients")
             # get the first grad_enabled tensor from un_checkpointed forward
             model_output = model(*args, **kwargs)
         else:

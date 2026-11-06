@@ -1,5 +1,6 @@
 import torch, json, os, inspect
 from ..core import ModelConfig, load_state_dict, QuantizeConfig
+from ..core.quant import MixedQuantizeConfig
 from ..utils.controlnet import ControlNetInput
 from .base_pipeline import PipelineUnit
 
@@ -180,6 +181,26 @@ class DiffusionTrainingModule(torch.nn.Module):
         quant_map = {}
         if quant_options is None:
             return quant_map
+
+        # JSON format
+        if quant_options.lstrip().startswith("{"):
+            json_options = json.loads(quant_options)
+            for model_string, value in json_options.items():
+                if not isinstance(value, dict):
+                    raise ValueError(f"Failed to parse quant option JSON: the config for `{model_string}` must be an object, got {type(value).__name__}.")
+                child_configs = value.pop("configs", None)
+                for config_dict in [value] + (child_configs if isinstance(child_configs, list) else []):
+                    if isinstance(config_dict, dict) and not isinstance(config_dict.get("load_prequantized", False), bool):
+                        raise ValueError(f"Failed to parse quant option JSON: `load_prequantized` for `{model_string}` must be a boolean, got {type(config_dict['load_prequantized']).__name__}.")
+                configs = [QuantizeConfig(**child) for child in (child_configs if child_configs is not None else [value])]
+                quant_config = configs[0] if child_configs is None else MixedQuantizeConfig(configs=configs, **value)
+                methods = [config.method for config in configs if not config.backend.capabilities().get("is_differentiable", True)]
+                if methods:
+                    raise ValueError(f"Quantization method(s) {methods} are not differentiable, so they cannot be used for training.")
+                quant_map[self.normalize_quant_key(model_string)] = quant_config
+            return quant_map
+
+        # Semicolon-separated format
         for entry in quant_options.split(";"):
             if entry == "":
                 continue
@@ -280,11 +301,53 @@ class DiffusionTrainingModule(torch.nn.Module):
         return lora_target_modules
     
 
+    @staticmethod
+    def format_lora_target_modules(lora_target_modules):
+        def compress(paths):
+            if len(paths) == 1:
+                return ".".join(paths[0])
+            # Factor out the common prefix.
+            prefix_len = 0
+            while all(len(path) > prefix_len for path in paths) and len({path[prefix_len] for path in paths}) == 1:
+                prefix_len += 1
+            prefix = paths[0][:prefix_len]
+            paths = [path[prefix_len:] for path in paths]
+            # Factor out the common suffix.
+            suffix_len = 0
+            while all(len(path) > suffix_len for path in paths) and len({path[len(path) - 1 - suffix_len] for path in paths}) == 1:
+                suffix_len += 1
+            suffix = paths[0][len(paths[0]) - suffix_len:] if suffix_len > 0 else []
+            paths = [path[:len(path) - suffix_len] for path in paths]
+            # Group by the first token, then merge the groups sharing an identical tail.
+            groups = {}
+            for path in paths:
+                groups.setdefault(path[0], []).append(path[1:])
+            keys = list(groups.keys())
+            sorted_tails = [sorted(groups[key]) for key in keys]
+            if len(keys) > 1 and all(tail == sorted_tails[0] for tail in sorted_tails):
+                common_tail = groups[keys[0]]
+                tail_str = compress(common_tail) if len(common_tail) > 0 else ""
+                middle = "{" + ",".join(keys) + "}" + (("." + tail_str) if tail_str != "" else "")
+            else:
+                rendered = []
+                for key in keys:
+                    tail = groups[key]
+                    if len(tail) == 1 and len(tail[0]) == 0:
+                        rendered.append(key)
+                    elif len(tail) == 1:
+                        rendered.append(key + "." + ".".join(tail[0]))
+                    else:
+                        rendered.append(key + "." + compress(tail))
+                middle = "{" + ",".join(rendered) + "}" if len(rendered) > 1 else rendered[0]
+            return ".".join(prefix + ([middle] if middle != "" else []) + suffix)
+
+        return compress([name.split(".") for name in lora_target_modules])
+
+
     def parse_lora_target_modules(self, model, lora_target_modules):
         if lora_target_modules == "":
-            print("No LoRA target modules specified. The framework will automatically search for them.")
             lora_target_modules = self.auto_detect_lora_target_modules(model)
-            print(f"LoRA will be patched at {lora_target_modules}.")
+            print(f"No LoRA target modules specified. LoRA will be patched at {self.format_lora_target_modules(lora_target_modules)}.")
         else:
             lora_target_modules = lora_target_modules.split(",")
         return lora_target_modules

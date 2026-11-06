@@ -1,3 +1,4 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 [build-system]
 requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -31,7 +32,7 @@ classifiers = [
 
 [tool.setuptools.packages.find]
 where = ["./"]
-include = ["diffsynth", "diffsynth.*"]
+include = ["diffsynth", "diffsynth.*", "diffsynth_hcu", "diffsynth_hcu.*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "diffsynth.version.__version__"}
@@ -46,6 +47,7 @@ audio = [
 quant = [
     "bitsandbytes",
     "comfy-kitchen",
+    "entropack[cuda13]",
     "torchao>=0.16"
 ]
 training = [
@@ -66,16 +68,22 @@ npu_aarch64 = [
     "torch-npu==2.7.1",
     "torchvision==0.22.1"
 ]
+controlnet = [
+    "controlnet_aux"
+]
 infiniteyou = [
     "insightface",
     "facexlib"
 ]
 ses = [
-    "pywt"
+    "PyWavelets"
 ]
 nexusgen = [
     "qwen_vl_utils",
     "transformers==4.49.0"
+]
+yue2 = [
+    "tiktoken"
 ]
 all = [
     "av",
@@ -84,6 +92,7 @@ all = [
     "librosa",
     "bitsandbytes",
     "comfy-kitchen",
+    "entropack[cuda13]",
     "torchao>=0.16",
     "deepspeed",
     "tensorboard",
@@ -93,3 +102,24 @@ all = [
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.package-data]
+"diffsynth_hcu" = ["THIRD_PARTY_NOTICES.md", "ops/csrc/cpu_adam/*.cpp", "ops/csrc/cpu_adam/*.h", "ops/csrc/cpu_adam/LICENSE"]
+
+# uv resolves all extras together, so the CPU-only torch pinned by the `npu` extra needs the PyTorch CPU index.
+# pip users pass `--extra-index-url https://download.pytorch.org/whl/cpu` instead (see docs/*/Pipeline_Usage/Setup.md).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", extra = "npu" }]
+torchvision = [{ index = "pytorch-cpu", extra = "npu" }]
+
+[tool.uv]
+# The NPU extras pin torch 2.7.1, while `quant` (and `all`) need torch>=2.10 through entropack.
+conflicts = [
+    [{ extra = "npu" }, { extra = "npu_aarch64" }, { extra = "quant" }],
+    [{ extra = "npu" }, { extra = "npu_aarch64" }, { extra = "all" }],
+]

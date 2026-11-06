@@ -33,7 +33,7 @@ def add_model_config(parser: argparse.ArgumentParser):
     return parser
 
 def add_quant_config(parser: argparse.ArgumentParser):
-    parser.add_argument("--quant_options", type=str, default=None, help="Dynamically quantize loaded models. Semicolon-separated entries, each `<model_string>:<method>[/<exclude_modules>]`, where `<model_string>` matches an entry in `--model_paths`/`--model_id_with_origin_paths`, `method` is a registered method (e.g. bitsandbytes_nf4), and `exclude_modules` optionally lists layers kept in full precision.")
+    parser.add_argument("--quant_options", type=str, default=None, help="Dynamically quantize loaded models. Semicolon-separated entries, each `<model_string>:<method>[/<exclude_modules>]`, where `<model_string>` matches an entry in `--model_paths`/`--model_id_with_origin_paths`, `method` is a registered method (e.g. bitsandbytes_nf4), and `exclude_modules` optionally lists layers kept in full precision. Alternatively, pass a JSON object mapping the same model strings to configs: `method`, optional `backend_config_kwargs` (method-specific parameters), and `target_modules`/`exclude_modules` (JSON lists of layer names). For example: --quant_options '{\"org/model:transformer/*.safetensors\": {\"method\": \"bitsandbytes_nf4\", \"backend_config_kwargs\": {\"blocksize\": 64}, \"exclude_modules\": [\"to_q\"]}}'. For mixed quantization, use a `configs` list of these configs instead of `method`, with `target_modules`/`exclude_modules` selecting non-overlapping layer sets.")
     return parser
 
 def add_training_config(parser: argparse.ArgumentParser):
@@ -41,10 +41,10 @@ def add_training_config(parser: argparse.ArgumentParser):
     parser.add_argument("--num_epochs", type=int, default=1, help="Number of epochs.")
     parser.add_argument("--trainable_models", type=str, default=None, help="Models to train, e.g., dit, vae, text_encoder.")
     parser.add_argument("--find_unused_parameters", default=False, action="store_true", help="Whether to find unused parameters in DDP.")
-    parser.add_argument("--deepspeed_zero3_lora_single_param_all_reduce", default=False, action="store_true", help="Use all-reduce instead of all-gather for single PEFT LoRA parameter fetches under ZeRO-3. On HIP this also disables overlap_comm so fetches stay on the default device stream.")
     parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay.")
     parser.add_argument("--task", type=str, default="sft", required=False, help="Task type.")
     parser.add_argument("--customized_optimizer", type=str, default=None, help="Customized optimizer, e.g., `bitsandbytes.optim.Adam8bit` and `torch.optim.Adam`. The default optimizer is `torch.optim.AdamW`.")
+    parser.add_argument("--warm_up_steps", type=int, default=5, help="Number of optimizer steps for linear learning rate warm-up. The learning rate ramps from `learning_rate / warm_up_steps` up to `learning_rate`. 0 disables warm-up. Steps are counted in optimizer updates, so the ramp is independent of `gradient_accumulation_steps` and the number of data-parallel processes.")
     return parser
 
 def add_output_config(parser: argparse.ArgumentParser):
@@ -68,11 +68,6 @@ def add_gradient_config(parser: argparse.ArgumentParser):
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps.")
     return parser
 
-def add_compile_config(parser: argparse.ArgumentParser):
-    parser.add_argument("--enable_compile", default=False, action="store_true", help="Enable torch.compile for regional DiT block compilation during training.")
-    parser.add_argument("--compile_mode", type=str, default="default", choices=["default", "reduce-overhead", "max-autotune", "max-autotune-no-cudagraphs"], help="Compilation mode for torch.compile.")
-    return parser
-
 def add_template_model_config(parser: argparse.ArgumentParser):
     parser.add_argument("--template_model_id_or_path", type=str, default=None, help="Model ID of path of template models.")
     parser.add_argument("--enable_lora_hot_loading", default=False, action="store_true", help="Whether to enable LoRA hot-loading. Only available for image-to-lora models.")
@@ -82,26 +77,6 @@ def add_offload_training_config(parser: argparse.ArgumentParser):
     parser.add_argument("--enable_model_cpu_offload", default=False, action="store_true", help="Enable layer offload training. Weights are kept on CPU and loaded to GPU one layer at a time.")
     parser.add_argument("--enable_optimizer_cpu_offload", default=False, action="store_true", help="When --enable_model_cpu_offload is enabled, run optimizer on CPU. All params are offloaded to CPU. Default is False (trainable params stay on GPU, optimizer on GPU).")
     parser.add_argument("--cpu_offload_split_threshold", type=int, default=None, help="Experimental! When --enable_model_cpu_offload is enabled, modules with total params above this threshold (in MB) are recursively split into children. None means offload every leaf module directly. Default: None.")
-    return parser
-
-def add_profiler_config(parser: argparse.ArgumentParser):
-    parser.add_argument("--enable_torch_profiler", default=False, action="store_true", help="Enable scheduled PyTorch profiler traces during training.")
-    parser.add_argument("--profiler_output_path", type=str, default=None, help="Trace output directory. Defaults to `<output_path>/torch_trace`.")
-    parser.add_argument("--profiler_freq", type=int, default=None, help="Profiler cycle length in training steps. When set, wait is derived as `freq - warmup - active`.")
-    parser.add_argument("--profiler_wait", type=int, default=0, help="Number of initial training steps skipped by each profiler cycle.")
-    parser.add_argument("--profiler_warmup", type=int, default=1, help="Number of warmup training steps in each profiler cycle.")
-    parser.add_argument("--profiler_active", type=int, default=1, help="Number of recorded training steps in each profiler cycle.")
-    parser.add_argument("--profiler_repeat", type=int, default=1, help="Number of profiler cycles.")
-    parser.add_argument("--profiler_target_ranks", type=str, default="0", help="Comma-separated ranks that export traces, or `all`. All ranks still profile to preserve distributed timing.")
-    parser.add_argument("--profiler_record_shapes", default=False, action="store_true", help="Record tensor shapes in profiler traces.")
-    parser.add_argument("--profiler_profile_memory", default=False, action="store_true", help="Record tensor memory usage in profiler traces.")
-    parser.add_argument("--profiler_with_stack", default=False, action="store_true", help="Record Python stack traces. This has significant overhead.")
-    parser.add_argument("--profiler_with_modules", default=False, action="store_true", help="Record module hierarchy in profiler traces.")
-    return parser
-
-def add_performance_config(parser: argparse.ArgumentParser):
-    parser.add_argument("--performance_log_interval", type=int, default=10, help="Log performance metrics every N optimizer steps when W&B logging is enabled.")
-    parser.add_argument("--hardware_peak_tflops", type=float, default=None, help="Per-device dense BF16 peak TFLOPs used for MFU. Required to report MFU.")
     return parser
 
 def add_logger_config(parser: argparse.ArgumentParser):
@@ -114,27 +89,26 @@ def add_logger_config(parser: argparse.ArgumentParser):
     return parser
 
 def add_dmd2_config(parser: argparse.ArgumentParser):
-    parser.add_argument("--dmd2_student_update_freq", type=int, default=5, help="Update student once every N DMD2 iterations.")
-    parser.add_argument("--dmd2_student_sample_steps", type=int, default=4, help="Number of distilled student sampling steps.")
-    parser.add_argument("--dmd2_student_sample_type", type=str, default="sde", choices=["sde", "ode"], help="Student sampling type.")
-    parser.add_argument("--dmd2_student_schedule", type=str, default="uniform", choices=["uniform"], help="Student sigma schedule.")
-    parser.add_argument("--dmd2_student_t_list", type=str, default=None, help="Optional student sigma schedule, including the final 0.")
-    parser.add_argument("--dmd2_matching_t_min", type=float, default=0.001, help="Minimum matching sigma sampled for DMD2.")
-    parser.add_argument("--dmd2_matching_t_max", type=float, default=0.999, help="Maximum matching sigma sampled for DMD2.")
-    parser.add_argument("--dmd2_matching_t_sampling", type=str, default="uniform", choices=["uniform", "logitnormal"], help="Sample matching sigma.")
-    parser.add_argument("--dmd2_matching_t_mean", type=float, default=0.0, help="Mean for logitnormal matching timestep sampling.")
-    parser.add_argument("--dmd2_matching_t_std", type=float, default=1.0, help="Std for logitnormal matching timestep sampling.")
-    parser.add_argument("--dmd2_gan_loss_weight", type=float, default=0.03, help="Generator GAN loss weight.")
-    parser.add_argument("--dmd2_gan_r1_reg_weight", type=float, default=0.0, help="Approximate R1 regularization weight for the discriminator.")
-    parser.add_argument("--dmd2_gan_r1_reg_alpha", type=float, default=0.1, help="Noise scale for approximate R1 regularization.")
-    parser.add_argument("--dmd2_fake_score_learning_rate", type=float, default=None, help="Learning rate for the fake score model.")
-    parser.add_argument("--dmd2_discriminator_learning_rate", type=float, default=None, help="Learning rate for the discriminator.")
-    parser.add_argument("--dmd2_feature_indices", type=str, default=None, help="Model feature indices used by the DMD2 discriminator.")
-    parser.add_argument("--dmd2_teacher_cfg_scale", type=float, default=1.0, help="CFG scale.")
-    parser.add_argument("--dmd2_student_grad_clip_norm", type=float, default=10.0, help="Clip student gradients to this norm.")
+    parser.add_argument("--dmd2_lora_dtype", choices=["bf16", "fp32"], default=None, help="LoRA parameter dtype; defaults to the pipeline dtype.")
+    parser.add_argument("--dmd2_disable_gan", dest="dmd2_gan", action="store_false", default=True, help="Disable real-image GAN training.")
+    parser.add_argument("--dmd2_fake_updates_per_generator", type=int, default=5)
+    parser.add_argument("--dmd2_fake_warmup_steps", type=int, default=100, help="Initial critic-only updates before training the student; 0 disables fake warmup.")
+    parser.add_argument("--dmd2_fake_learning_rate", type=float, default=None, help="Learning rate for fake and GAN classifier; defaults to learning_rate, which controls the student.")
+    parser.add_argument("--dmd2_generator_gan_loss_weight", type=float, default=0.005, help="Weight of the GAN loss for generator updates.")
+    parser.add_argument("--dmd2_discriminator_gan_loss_weight", type=float, default=0.01, help="Weight of real/fake GAN losses for fake model and classifier updates.")
+    parser.add_argument("--dmd2_student_sigmas", type=str, required=True, help="Sigmas of the student model.")
+    parser.add_argument("--dmd2_student_timesteps", type=str, required=True, help="Timesteps of the student model.")
+    parser.add_argument("--dmd2_teacher_cfg", type=float, default=3., help="CFG scale of the teacher model.")
+    parser.add_argument("--dmd2_noise_sampling", choices=["uniform", "beta"], default="uniform", help="DM and fake noise sampling: uniform or Beta(2.5, 1). GAN always uses uniform sampling.")
+    parser.add_argument("--dmd2_min_timestep", type=int, default=20, help="Lower randint bound for uniform DM sampling; beta DM/fake sigma is clamped below at (value + 1) / 1000.")
+    parser.add_argument("--dmd2_max_timestep", type=int, default=981, help="Exclusive upper randint bound for uniform DM sampling; beta DM/fake sigma is clamped above at value / 1000.")
+    parser.add_argument("--dmd2_classifier_channels", type=int, default=1280)
+    parser.add_argument("--dmd2_feature_module_of_dit_for_gan", type=str, help="Module within lora_base_model to hook for GAN features.")
     return parser
 
 def add_general_config(parser: argparse.ArgumentParser):
+    from diffsynth_hcu.config import add_hcu_config
+    parser = add_hcu_config(parser)
     parser = add_dataset_base_config(parser)
     parser = add_model_config(parser)
     parser = add_quant_config(parser)
@@ -142,10 +116,7 @@ def add_general_config(parser: argparse.ArgumentParser):
     parser = add_output_config(parser)
     parser = add_lora_config(parser)
     parser = add_gradient_config(parser)
-    parser = add_compile_config(parser)
     parser = add_template_model_config(parser)
     parser = add_offload_training_config(parser)
-    parser = add_profiler_config(parser)
-    parser = add_performance_config(parser)
     parser = add_logger_config(parser)
     return parser
