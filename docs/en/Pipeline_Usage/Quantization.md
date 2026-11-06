@@ -19,8 +19,12 @@ Different quantization backends require the corresponding third-party libraries:
 | bitsandbytes | `pip install bitsandbytes` | [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) |
 | torchao | `pip install torchao>=0.16` | [torchao](https://github.com/pytorch/ao) |
 | comfy-kitchen | `pip install comfy-kitchen` | [comfy-kitchen](https://github.com/Comfy-Org/comfy-kitchen) |
+| entropack | `pip install "entropack[cuda13]"` | [entropack](https://github.com/modelscope/entropack) |
+| deep_gemm | build from source: `git clone --recursive https://github.com/deepseek-ai/DeepGEMM && cd DeepGEMM && ./install.sh` | [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM) |
 
-Install all at once: `pip install "diffsynth[quant]"`
+Install all at once: `pip install "diffsynth[quant]"` (this does not include `deep_gemm`, which is not distributed on PyPI).
+
+`deep_gemm` is not on PyPI: it must be built from source in the same environment as PyTorch, and it needs an NVIDIA SM90/SM100 GPU, CUDA 12.9 or newer, and a compiler with C++20 `<format>` support. DeepGEMM compiles its kernels at runtime with `nvcc`, which is looked up through `CUDA_HOME` (or, when that is unset, the `nvcc` on `PATH`).
 
 ## Quick Start
 
@@ -69,6 +73,16 @@ The following are all built-in quantization methods. `method` is the name passed
 | `torchao_nvfp4_w4a4` | torchao | NVFP4 / NVFP4 | ✅ | ❌ |
 | `comfy_kitchen_int8_w8a8` | comfy_kitchen | INT8 / INT8 dynamic | ✅ | ✅ |
 | `comfy_kitchen_fp8_w8a8` | comfy_kitchen | FP8 E4M3 / FP8 | ✅ | ✅ |
+| `deep_gemm_fp8_w8a8` | deep_gemm | FP8 E4M3 (128x128 block) / FP8 per-token dynamic | ✅ | ✅ |
+| `deep_gemm_fp4_w4a4` | deep_gemm_fp4 | FP4 E2M1 (1x32 block) / FP4 per-token dynamic | ✅ | ✅ |
+| `deep_gemm_fp4_w4a8` | deep_gemm_fp4 | FP4 E2M1 (1x32 block) / FP8 per-token dynamic | ✅ | ✅ |
+| `entropack_lossless_df11` | entropack | lossless DFloat11 (BF16) / none | ✅ | ✅ |
+| `entropack_lossless_tile_ans` | entropack | lossless tile-ANS (BF16 / FP16 / FP8 / INT8, etc.) / none | ✅ | ✅ |
+| `entropack_lossy_quant` | entropack | lossy E8-lattice quantization / none | ✅ | ✅ |
+| `entropack_lossy_quant_fp8` | entropack | FP8 E4M3 codes + lattice coding / FP8 | ✅ | ✅ |
+| `entropack_lossy_quant_fp8_raw` | entropack | FP8 E4M3 codes / FP8 | ✅ | ✅ |
+| `entropack_lossy_quant_int8` | entropack | INT8 codes + lattice coding / INT8 | ✅ | ✅ |
+| `entropack_lossy_quant_int8_raw` | entropack | INT8 codes / INT8 | ✅ | ✅ |
 
 Some notes:
 
@@ -76,6 +90,22 @@ Some notes:
 - **LoRA training**: only methods marked ✅ in the "LoRA Training" column can be used for quantization + LoRA training.
 - `comfy_kitchen_*` methods read and write ComfyUI's quantized weight format, interoperable with the ComfyUI ecosystem. comfy-kitchen requires CUDA 13.0 or later.
 - Formats such as MXFP8 / MXFP4 / NVFP4 have compute hardware requirements; see the [torchao](https://github.com/pytorch/ao) documentation for compatibility details.
+- entropack needs Python 3.10+ and a CUDA build of PyTorch 2.10+; replace `cuda13` with `cuda12` in the install command to match the environment. `entropack_lossy_quant_fp8*` needs SM8.9 or newer, `entropack_lossy_quant_int8*` needs SM8.0 or newer.
+- For lossless compression use `entropack_lossless_df11` (BF16) or `entropack_lossless_tile_ans` (BF16 / FP16 / FP8 / INT8, etc.); to control storage size use `entropack_lossy_quant`, whose `target_bpp` takes any continuous value from 0.001 to 11 (default 4.0; on Z-Image-Turbo's 276 linear layers 3 bpp reaches ~14% and 4 bpp ~7% weight rel-L2). `entropack_lossy_quant_fp8*` / `entropack_lossy_quant_int8*` are W8A8 methods: the `*_raw` variants store the codes directly, the other two entropy-code them, and their `target_bpp` is capped at 8.
+- Select the layers to quantize explicitly with `target_modules` / `exclude_modules`; the actual bpp is recorded in the checkpoint options. See [entropack](https://github.com/modelscope/entropack) for parameters and more usage.
+- `deep_gemm_fp8_w8a8` keeps the weights as fp8 E4M3 with one scale per 128x128 block and quantizes each activation tile per token in a fused kernel, then runs the matmul with DeepGEMM's FP8 kernels on SM90/SM100 tensor cores. It therefore needs an SM90/SM100 GPU, CUDA 12.9+, and the DeepGEMM package built from source (see [Installation](#installation)). The first forward compiles the kernels for the shapes in use (a few seconds, cached under `~/.dj` afterwards). Layers whose input or output size is not a multiple of 128 (e.g. the patch-embedding projections of some models) stay in their original precision.
+- `deep_gemm_fp4_w4a4` / `deep_gemm_fp4_w4a8` store the weights as FP4 E2M1 (one scale per 1x32 block) and quantize the activations per token as FP4 (1x32) or FP8 (1x128) respectively; the matmul runs on DeepGEMM's FP4 MMA, which needs an **SM100 (Blackwell)** GPU — these methods refuse to load on SM90, where `deep_gemm_fp8_w8a8` is the fastest DeepGEMM path. W4A4 is the fastest and W4A8 the safer compromise for quantization-sensitive models. FP4 weights are coarser (about 11% relative weight error against bf16), so validate image quality before using them for production.
+
+For example:
+
+```python
+e8 = QuantizeConfig(
+    method="entropack_lossy_quant",
+    backend_config_kwargs={"target_bpp": 4.0},   # any continuous value from 1 to 11
+)
+```
+
+The lossy and lossless methods both support `dynamic`, `dequant_once`, saved/pre-quantized checkpoints, CPU/disk offload, and input-gradient/LoRA flows. Lossy checkpoints use the self-describing CompressedTensor v2 header; headerless legacy buffers remain lossless-only. No model hash is registered until a corresponding artifact is intentionally released.
 
 You can query all available methods and their parameters in code:
 
@@ -258,7 +288,53 @@ With `exclude_modules` to keep quantization-sensitive layers in full precision:
   --quant_options "MiniMaxAI/MiniMax-H3:FL2VA/transformer/model*.safetensors:bitsandbytes_nf4/time_embedder.proj_in,time_embedder.proj_out,video_patch_proj,audio_patch_proj"
 ```
 
-> `--quant_options` always uses `mode="dynamic"` and does not expose advanced options such as `backend_config_kwargs` or mixed quantization. For those, use Approach 1: save quantized weights with `save_quantized_model` first, then train with the pre-quantized base model.
+The semicolon format above uses `mode="dynamic"`. To configure `backend_config_kwargs`, `target_modules`, other modes, or mixed quantization, use the JSON format instead.
+
+#### JSON format
+
+`--quant_options` can also be a JSON object whose keys are the same model strings and whose values are the corresponding quantization configs. Common fields for a single config are:
+
+| Field | Usage |
+|---|---|
+| `method` | Required, a registered quantization method name. |
+| `backend_config_kwargs` | Optional, a dict of method-specific parameters; use `describe_quant_method(method)` to query accepted parameters. |
+| `target_modules` / `exclude_modules` | Optional, names of target layers / layers kept in full precision, as JSON lists rather than comma-separated strings. |
+| `mode` | Optional, defaults to `"dynamic"`; `"dequant_once"` converts quantized layers back to ordinary floating-point Linears. |
+| `load_prequantized` | Optional, defaults to `false`; use `true` for already-quantized weights. Must be a JSON boolean, not `"false"`, `0`, `1`, or `null`. |
+
+**Pre-quantized models usually do not need another `--quant_options` entry**: their `quant_config` is normally registered in `diffsynth.configs.MODEL_CONFIGS` ahead of time, including `load_prequantized=True`. The loader ignores `--quant_options` entries for registered pre-quantized models and uses their registered `quant_config` without re-quantizing the weights, so training usually requires only the model's path or ID. If other floating-point components still need online quantization, provide `--quant_options` only for those components.
+
+The following training command sets NF4 backend parameters and excludes `to_q` in the DiT, while using the default NF4 config for the text encoder:
+
+```bash
+accelerate launch examples/z_image/model_training/train.py \
+  --dataset_base_path data/diffsynth_example_dataset/z_image/Z-Image-Turbo \
+  --dataset_metadata_path data/diffsynth_example_dataset/z_image/Z-Image-Turbo/metadata.csv \
+  --model_id_with_origin_paths "Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors,Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors,Tongyi-MAI/Z-Image-Turbo:vae/diffusion_pytorch_model.safetensors" \
+  --quant_options '{"Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors": {"method": "bitsandbytes_nf4", "backend_config_kwargs": {"blocksize": 64, "compress_statistics": false}, "exclude_modules": ["to_q"]}, "Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors": {"method": "bitsandbytes_nf4"}}' \
+  --lora_base_model "dit" \
+  --lora_target_modules "to_q,to_k,to_v,to_out.0,w1,w2,w3" \
+  --lora_rank 32 \
+  --use_gradient_checkpointing \
+  --output_path "./models/train/Z-Image-Turbo_quant_lora"
+```
+
+**Mixed configs**: the model's config object uses the fields below, where `configs[]` denotes each child in the list:
+
+| Field | Usage |
+|---|---|
+| `configs` | Required, a non-empty list of child config objects. |
+| `configs[].method` | Required, the registered quantization method name for the child. |
+| `configs[].backend_config_kwargs` | Optional, a dict of method-specific parameters for the child. |
+| `configs[].target_modules` / `configs[].exclude_modules` | Optional, JSON lists of layer names; the layer sets matched by the children must not overlap. |
+| `configs[].mode` | Optional, defaults to `"dynamic"`; `"dequant_once"` is also supported. All children must use the same mode. |
+| `load_prequantized` | Optional, defaults to `false`; use `true` for mixed pre-quantized weights. Must be a JSON boolean set on the mixed wrapper; children should omit it or use `false`. |
+
+Single and mixed configs can coexist in the same JSON object. For example, replace `--quant_options` in the command above with:
+
+```bash
+  --quant_options '{"Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors": {"configs": [{"method": "bitsandbytes_nf4", "backend_config_kwargs": {"blocksize": 64}, "exclude_modules": ["to_q"]}, {"method": "torchao_int8_w8a16", "target_modules": ["to_q"]}]}, "Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors": {"method": "bitsandbytes_nf4"}}'
+```
 
 ### Shared notes
 

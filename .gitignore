@@ -3,8 +3,8 @@
 /scripts
 /diffusers
 /.vscode
+/.qoder
 /.opencode
-/logs
 *.pkl
 *.safetensors
 *.pth

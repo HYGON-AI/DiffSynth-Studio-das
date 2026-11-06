@@ -1,6 +1,6 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 # Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
-# Modified by Hygon Information Technology Co., Ltd., 2026.
 import torch, os, argparse, accelerate
 from transformers import set_seed
 from diffsynth.core import UnifiedDataset
@@ -25,8 +25,6 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         preset_lora_path=None, preset_lora_model=None,
         use_gradient_checkpointing=True,
         use_gradient_checkpointing_offload=False,
-        enable_compile=False,
-        compile_mode="default",
         extra_inputs=None,
         fp8_models=None,
         offload_models=None,
@@ -37,6 +35,7 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         training_cfg_scale=1.0,
         audio_loss_weight=1.0,
         seed=None,
+        fa_cache_layers=20,
         device="cpu",
         task="sft",
     ):
@@ -68,45 +67,24 @@ class MiniMaxH3TrainingModule(DiffusionTrainingModule):
         )
         self.pipe.scheduler_audio.set_timesteps(1000, training=True)
 
-        from diffsynth.core.attention.h3_fa_cache import fa_cache_layers
-        fa_cpu_layers, fa_gpu_layers = fa_cache_layers(strict=not task.endswith(":data_process"))
-        no_checkpoint_last = int(os.environ.get("DIFFSYNTH_H3_NO_CHECKPOINT_LAST_LAYERS", "0"))
-        if not task.endswith(":data_process") and (fa_cpu_layers or fa_gpu_layers or no_checkpoint_last):
+        from diffsynth_hcu.fa_cache import configure_fa_cache, fa_cache_layers as parse_fa_cache_layers
+        cache_layers = 0 if task.endswith(":data_process") or training_cfg_scale > 1.0 else parse_fa_cache_layers(fa_cache_layers)
+        if cache_layers:
             if getattr(self.pipe, "dit", None) is None:
-                raise RuntimeError("H3 recompute experiments require a DiT model")
-            blocks = self.pipe.dit.blocks
-            if not 0 <= no_checkpoint_last <= len(blocks):
-                raise ValueError("DIFFSYNTH_H3_NO_CHECKPOINT_LAST_LAYERS is out of range")
-            if no_checkpoint_last and not use_gradient_checkpointing:
-                raise RuntimeError("Skipping selected checkpoints requires block checkpointing enabled")
-            if no_checkpoint_last and use_gradient_checkpointing_offload:
-                raise RuntimeError("Skipping selected checkpoints is incompatible with checkpoint offload")
-            if max(fa_cpu_layers, fa_gpu_layers) + no_checkpoint_last > len(blocks):
-                raise ValueError("FA cache layers and no-checkpoint layers overlap")
-            if fa_cpu_layers or fa_gpu_layers:
-                from diffsynth.core.attention.h3_fa_cache import configure_fa_cache
-                configure_fa_cache(self.pipe.dit, use_gradient_checkpointing, use_gradient_checkpointing_offload)
-            if no_checkpoint_last:
-                for block in blocks[-no_checkpoint_last:]:
-                    block._h3_no_checkpoint = True
-                print(f"H3 whole-block checkpoint disabled on last {no_checkpoint_last} DiT blocks", flush=True)
+                raise RuntimeError("FA replay cache requires a DiT model")
+            configure_fa_cache(self.pipe.dit, cache_layers, mode="gpu",
+                               checkpointing=use_gradient_checkpointing,
+                               checkpoint_offload=use_gradient_checkpointing_offload)
 
-        if lora_base_model in ("", "dit") and getattr(self.pipe, "dit", None) is not None:
-            from diffsynth.core.ops.minimax_h3_lora import enable_minimax_h3_unit_lora_scale
-            count = enable_minimax_h3_unit_lora_scale(self.pipe.dit)
-            print(f"H3 unit-scaling LoRA fast path installed on {count} Linear modules.")
-
-        if enable_compile and hasattr(self.pipe, "dit") and self.pipe.dit is not None:
-            from diffsynth.core.ops.minimax_h3_tensor_ops import configure_minimax_h3_tensor_compile
-            configure_minimax_h3_tensor_compile(mode=compile_mode)
+        if torch.version.hip is not None and not task.endswith(":data_process") and getattr(self.pipe, "dit", None) is not None:
+            from diffsynth.models.minimax_h3_tensor_ops import configure_minimax_h3_tensor_compile
+            configure_minimax_h3_tensor_compile()
 
         # Store other configs
         self.silent_on_missing_audio = silent_on_missing_audio
         self.seed = seed
         self.use_gradient_checkpointing = use_gradient_checkpointing
         self.use_gradient_checkpointing_offload = use_gradient_checkpointing_offload
-        self.enable_compile = enable_compile
-        self.compile_mode = compile_mode
         self.extra_inputs = extra_inputs.split(",") if extra_inputs is not None else []
         self.fp8_models = fp8_models
         self.task = task
@@ -207,7 +185,6 @@ def minimax_h3_parser():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
     parser = add_general_config(parser)
     parser = add_video_size_config(parser)
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for model/LoRA initialization, data ordering, and per-step training noise.")
     parser.add_argument("--processor_path", type=str, default=None, help="Path or `model_id:pattern` of the Qwen3-VL processor.")
     parser.add_argument("--initialize_model_on_cpu", default=False, action="store_true", help="Whether to initialize models on CPU.")
     parser.add_argument("--silent_on_missing_audio", default=False, action="store_true", help="Whether to use silent audio as a fallback when no audio track is present in the video data.")
@@ -289,8 +266,6 @@ if __name__ == "__main__":
         preset_lora_model=args.preset_lora_model,
         use_gradient_checkpointing=args.use_gradient_checkpointing,
         use_gradient_checkpointing_offload=args.use_gradient_checkpointing_offload,
-        enable_compile=getattr(args, "enable_compile", False),
-        compile_mode=getattr(args, "compile_mode", "default"),
         extra_inputs=args.extra_inputs,
         fp8_models=args.fp8_models,
         offload_models=args.offload_models,
@@ -302,6 +277,7 @@ if __name__ == "__main__":
         training_cfg_scale=args.training_cfg_scale,
         audio_loss_weight=args.audio_loss_weight,
         seed=args.seed,
+        fa_cache_layers=getattr(args, "fa_cache_layers", 20),
         task=args.task,
         device="cpu" if (args.initialize_model_on_cpu or args.enable_model_cpu_offload) else accelerator.device,
     )
