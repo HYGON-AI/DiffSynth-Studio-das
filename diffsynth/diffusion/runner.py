@@ -476,6 +476,25 @@ def _format_performance_metrics(metrics):
     return "Performance: " + ", ".join(fields)
 
 
+def exclude_quantized_params_from_ddp_sync(accelerator: Accelerator, model: DiffusionTrainingModule):
+    """DDP broadcasts every parameter when it is constructed, but a quantized weight backed by a
+    tensor subclass cannot be flattened into a broadcast bucket. Such weights are frozen and every
+    rank loads them from the same checkpoint, so let DDP skip them."""
+    try:
+        from torch.utils._python_dispatch import is_traceable_wrapper_subclass
+        quant_configs = [module.quantize_config for module in model.modules() if getattr(module, "quantize_config", None) is not None]
+        ignored = [
+            f"{name}.weight" for name, module in model.named_modules()
+            if any(quantize.is_quantized_linear(module) for quantize in quant_configs)
+            and not module.weight.requires_grad and is_traceable_wrapper_subclass(module.weight)
+        ]
+        if len(ignored) > 0:
+            model._ddp_params_and_buffers_to_ignore = ignored
+            if accelerator.is_main_process:
+                print(f"{len(ignored)} quantized weights are excluded from DDP state synchronization.")
+    except Exception as e:
+        print(f"Warning: failed to exclude quantized weights from DDP state synchronization: {e}")
+
 def launch_training_task(
     accelerator: Accelerator,
     dataset: torch.utils.data.Dataset,
@@ -527,6 +546,7 @@ def launch_training_task(
         offload_manager = OffloadTrainingManager(model, accelerator.device, enable_optimizer_cpu_offload, cpu_offload_split_threshold)
     else:
         model.to(device=accelerator.device)
+        exclude_quantized_params_from_ddp_sync(accelerator, model)
         model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
 
     _patch_deepspeed_zero3_lora_single_param_all_reduce(
@@ -623,6 +643,7 @@ def launch_data_process_task(
         model.pipe.device = accelerator.device
     else:
         model.to(device=accelerator.device)
+        exclude_quantized_params_from_ddp_sync(accelerator, model)
         model, dataloader = accelerator.prepare(model, dataloader)
     
     for data_id, data in enumerate(tqdm(dataloader)):

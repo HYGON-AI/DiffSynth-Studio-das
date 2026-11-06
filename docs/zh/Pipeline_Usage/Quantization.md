@@ -19,8 +19,12 @@
 | bitsandbytes | `pip install bitsandbytes` | [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) |
 | torchao | `pip install torchao>=0.16` | [torchao](https://github.com/pytorch/ao) |
 | comfy-kitchen | `pip install comfy-kitchen` | [comfy-kitchen](https://github.com/Comfy-Org/comfy-kitchen) |
+| entropack | `pip install "entropack[cuda13]"` | [entropack](https://github.com/modelscope/entropack) |
+| deep_gemm | 源码编译：`git clone --recursive https://github.com/deepseek-ai/DeepGEMM && cd DeepGEMM && ./install.sh` | [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM) |
 
-一次性安装全部：`pip install "diffsynth[quant]"`
+一次性安装全部：`pip install "diffsynth[quant]"`（不包含 `deep_gemm`，它没有发布到 PyPI）。
+
+`deep_gemm` 不在 PyPI 上，需要在与 PyTorch 相同的环境中从源码编译，并要求 NVIDIA SM90/SM100 显卡、CUDA 12.9 及以上，以及支持 C++20 `<format>` 的编译器。DeepGEMM 在运行时用 `nvcc` 编译 kernel，`nvcc` 从 `CUDA_HOME`（未设置时取 `PATH` 中的 `nvcc`）查找。
 
 ## 快速开始
 
@@ -69,6 +73,16 @@ image.save("image_z_image_nf4.jpg")
 | `torchao_nvfp4_w4a4` | torchao | NVFP4 / NVFP4 | ✅ | ❌ |
 | `comfy_kitchen_int8_w8a8` | comfy_kitchen | INT8 / INT8 动态 | ✅ | ✅ |
 | `comfy_kitchen_fp8_w8a8` | comfy_kitchen | FP8 E4M3 / FP8 | ✅ | ✅ |
+| `deep_gemm_fp8_w8a8` | deep_gemm | FP8 E4M3（128x128 分块）/ FP8 按 token 动态量化 | ✅ | ✅ |
+| `deep_gemm_fp4_w4a4` | deep_gemm_fp4 | FP4 E2M1（1x32 分块）/ FP4 按 token 动态量化 | ✅ | ✅ |
+| `deep_gemm_fp4_w4a8` | deep_gemm_fp4 | FP4 E2M1（1x32 分块）/ FP8 按 token 动态量化 | ✅ | ✅ |
+| `entropack_lossless_df11` | entropack | 无损 DFloat11（BF16） / 不量化 | ✅ | ✅ |
+| `entropack_lossless_tile_ans` | entropack | 无损 tile-ANS（BF16 / FP16 / FP8 / INT8 等） / 不量化 | ✅ | ✅ |
+| `entropack_lossy_quant` | entropack | 有损 E8 格量化 / 不量化 | ✅ | ✅ |
+| `entropack_lossy_quant_fp8` | entropack | FP8 E4M3 量化码 + 格编码 / FP8 | ✅ | ✅ |
+| `entropack_lossy_quant_fp8_raw` | entropack | FP8 E4M3 量化码 / FP8 | ✅ | ✅ |
+| `entropack_lossy_quant_int8` | entropack | INT8 量化码 + 格编码 / INT8 | ✅ | ✅ |
+| `entropack_lossy_quant_int8_raw` | entropack | INT8 量化码 / INT8 | ✅ | ✅ |
 
 几点说明：
 
@@ -76,6 +90,22 @@ image.save("image_z_image_nf4.jpg")
 - **LoRA 训练**：只有表中"支持 LoRA 训练"为 ✅ 的方法可用于量化 + LoRA 训练。
 - `comfy_kitchen_*` 方法读写的是 ComfyUI 的量化权重格式，可与 ComfyUI 生态互通。comfy-kitchen 需要 CUDA 13.0 及以上。
 - MXFP8 / MXFP4 / NVFP4 等格式对计算硬件有要求，具体兼容性请查阅 [torchao](https://github.com/pytorch/ao) 文档。
+- entropack 需要 Python 3.10 及以上和 CUDA 版 PyTorch 2.10 及以上；安装命令中的 `cuda13` 按环境换成 `cuda12`。`entropack_lossy_quant_fp8*` 需要 SM8.9 及以上，`entropack_lossy_quant_int8*` 需要 SM8.0 及以上。
+- 要无损选 `entropack_lossless_df11`（BF16）或 `entropack_lossless_tile_ans`（BF16 / FP16 / FP8 / INT8 等）；要控制体积选 `entropack_lossy_quant`，`target_bpp` 在 0.001–11 之间连续取值（默认 4.0；Z-Image-Turbo 的 276 个线性层上 3 bpp 约 14%、4 bpp 约 7% 权重 rel-L2）。`entropack_lossy_quant_fp8*` / `entropack_lossy_quant_int8*` 是 W8A8 方法，`*_raw` 直接存储量化码，另两个再对量化码做熵编码，其 `target_bpp` 上限为 8（超出会被截到 8）。
+- 请用 `target_modules` / `exclude_modules` 明确要量化的层；实际 bpp 记录在 checkpoint options 中。参数与更多用法见 [entropack](https://github.com/modelscope/entropack)。
+- `deep_gemm_fp8_w8a8` 把权重存为 fp8 E4M3（每 128x128 分块一个 scale），每次 forward 用一个融合 kernel 按 token 量化激活，再由 DeepGEMM 的 FP8 kernel 在 SM90/SM100 的 Tensor Core 上完成矩阵乘，因此需要 SM90/SM100 显卡、CUDA 12.9 及以上，以及从源码编译的 DeepGEMM（见[安装依赖](#安装依赖)）。首次 forward 会针对实际形状编译 kernel（数秒，之后缓存在 `~/.dj`）。输入或输出尺寸不是 128 整数倍的层（例如部分模型的 patch embedding 投影）会保持原精度。
+- `deep_gemm_fp4_w4a4` / `deep_gemm_fp4_w4a8` 把权重存为 FP4 E2M1（每 1x32 分块一个 scale），激活分别按 token 量化成 FP4（1x32）或 FP8（1x128）；矩阵乘走 DeepGEMM 的 FP4 MMA，需要 **SM100（Blackwell）** 显卡，在 SM90 上会直接拒绝加载（SM90 上 `deep_gemm_fp8_w8a8` 已是最快的 DeepGEMM 路径）。W4A4 最快，W4A8 则更适合对量化敏感的模型。FP4 权重较粗（相对 bf16 约 11% 权重误差），生产使用前请先验证画质。
+
+示例：
+
+```python
+e8 = QuantizeConfig(
+    method="entropack_lossy_quant",
+    backend_config_kwargs={"target_bpp": 4.0},   # 1–11 之间连续取值
+)
+```
+
+有损与无损方法都支持 `dynamic`、`dequant_once`、保存/加载预量化 checkpoint、CPU/disk offload 以及输入梯度/LoRA 流程。有损 checkpoint 使用可自描述的 CompressedTensor v2 header；无 header 的旧格式 buffer 仍只允许无损方法加载。在对应权重文件被明确发布前，不注册模型 hash。
 
 你可以在代码中查询所有可用方法及其参数：
 
@@ -258,7 +288,53 @@ accelerate launch examples/z_image/model_training/train.py \
   --quant_options "MiniMaxAI/MiniMax-H3:FL2VA/transformer/model*.safetensors:bitsandbytes_nf4/time_embedder.proj_in,time_embedder.proj_out,video_patch_proj,audio_patch_proj"
 ```
 
-> `--quant_options` 使用的是 `mode="dynamic"`，不支持配置 `backend_config_kwargs`、混合量化等更复杂的选项。有这类需求时请改用方式一：先用 `save_quantized_model` 保存量化权重，再用预量化底模训练。
+以上分号格式使用 `mode="dynamic"`。需要配置 `backend_config_kwargs`、`target_modules`、其他模式或混合量化时，可以改用 JSON 格式。
+
+#### JSON 格式
+
+`--quant_options` 也可以是一个 JSON 对象，key 使用同样的模型字符串，value 为该模型的量化配置。单一配置常用字段如下：
+
+| 字段 | 用法 |
+|---|---|
+| `method` | 必填，已注册的量化方法名。 |
+| `backend_config_kwargs` | 可选，方法专属参数字典；用 `describe_quant_method(method)` 查询可用参数。 |
+| `target_modules` / `exclude_modules` | 可选，目标层名 / 保持全精度的层名，使用 JSON 列表而不是逗号分隔字符串。 |
+| `mode` | 可选，默认 `"dynamic"`；`"dequant_once"` 表示量化后转回普通浮点 Linear。 |
+| `load_prequantized` | 可选，默认 `false`；已经量化的权重使用 `true`。必须写 JSON 布尔值，不能写 `"false"`、`0`、`1` 或 `null`。 |
+
+**预量化模型通常无需重复填写 `--quant_options`**：其 `quant_config` 一般已提前注册在 `diffsynth.configs.MODEL_CONFIGS` 中，并带有 `load_prequantized=True`。加载器会忽略针对已注册预量化模型的 `--quant_options`，直接使用注册的 `quant_config`，不会重新量化，因此训练时通常只需指定预量化模型的路径或 ID。如果其他浮点模型组件仍需在线量化，可只为那些组件填写 `--quant_options`。
+
+下面的训练命令为 DiT 设置 NF4 后端参数并排除 `to_q`，text encoder 使用默认 NF4 配置：
+
+```bash
+accelerate launch examples/z_image/model_training/train.py \
+  --dataset_base_path data/diffsynth_example_dataset/z_image/Z-Image-Turbo \
+  --dataset_metadata_path data/diffsynth_example_dataset/z_image/Z-Image-Turbo/metadata.csv \
+  --model_id_with_origin_paths "Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors,Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors,Tongyi-MAI/Z-Image-Turbo:vae/diffusion_pytorch_model.safetensors" \
+  --quant_options '{"Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors": {"method": "bitsandbytes_nf4", "backend_config_kwargs": {"blocksize": 64, "compress_statistics": false}, "exclude_modules": ["to_q"]}, "Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors": {"method": "bitsandbytes_nf4"}}' \
+  --lora_base_model "dit" \
+  --lora_target_modules "to_q,to_k,to_v,to_out.0,w1,w2,w3" \
+  --lora_rank 32 \
+  --use_gradient_checkpointing \
+  --output_path "./models/train/Z-Image-Turbo_quant_lora"
+```
+
+**混合配置**：模型的配置对象使用以下字段，其中 `configs[]` 表示列表中的各子项：
+
+| 字段 | 用法 |
+|---|---|
+| `configs` | 必填，非空的子配置对象列表。 |
+| `configs[].method` | 必填，子项使用的已注册量化方法名。 |
+| `configs[].backend_config_kwargs` | 可选，子项的方法专属参数字典。 |
+| `configs[].target_modules` / `configs[].exclude_modules` | 可选，JSON 层名列表；各子项匹配的层集合必须互不重叠。 |
+| `configs[].mode` | 可选，默认 `"dynamic"`，也可设为 `"dequant_once"`；所有子项必须一致。 |
+| `load_prequantized` | 可选，默认 `false`；混合预量化权重使用 `true`，必须是 JSON 布尔值。此项位于混合顶层，子项应省略或写 `false`。 |
+
+单一配置和混合配置可以放在同一个 JSON 对象里。例如，将上面命令的 `--quant_options` 替换为：
+
+```bash
+  --quant_options '{"Tongyi-MAI/Z-Image-Turbo:transformer/*.safetensors": {"configs": [{"method": "bitsandbytes_nf4", "backend_config_kwargs": {"blocksize": 64}, "exclude_modules": ["to_q"]}, {"method": "torchao_int8_w8a16", "target_modules": ["to_q"]}]}, "Tongyi-MAI/Z-Image-Turbo:text_encoder/*.safetensors": {"method": "bitsandbytes_nf4"}}'
+```
 
 ### 通用说明
 

@@ -43,11 +43,11 @@ output_1 = attention(query, key, value)
 * Flash Attention 4: [GitHub](https://github.com/Dao-AILab/flash-attention)、[论文](https://arxiv.org/abs/2603.05451)
 * Flash Attention 3：[GitHub](https://github.com/Dao-AILab/flash-attention)、[论文](https://arxiv.org/abs/2407.08608)
 * Flash Attention 2：[GitHub](https://github.com/Dao-AILab/flash-attention)、[论文](https://arxiv.org/abs/2307.08691)
-* Sage Attention：[GitHub](https://github.com/thu-ml/SageAttention)、[论文](https://arxiv.org/abs/2505.11594)
+* Sage Attention：[GitHub](https://github.com/thu-ml/SageAttention)、[论文](https://arxiv.org/abs/2505.11594)（因反向传播误差较大，不自动启用，详见下文）
 * xFormers：[GitHub](https://github.com/facebookresearch/xformers)、[文档](https://facebookresearch.github.io/xformers/components/ops.html#module-xformers.ops)
 * PyTorch：[GitHub](https://github.com/pytorch/pytorch)、[文档](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html)
 
-如需调用除 `PyTorch` 外的其他注意力实现，请按照其 GitHub 页面的指引安装对应的包。`DiffSynth-Studio` 会自动根据 Python 环境中的可用包路由到对应的实现上，也可通过[环境变量](../../Pipeline_Usage/Environment_Variables.md#diffsynth_attention_implementation)控制。
+如需调用除 `PyTorch` 外的其他注意力实现，请按照其 GitHub 页面的指引安装对应的包。`DiffSynth-Studio` 会根据 Python 环境中的可用包自动路由到对应的实现（Sage Attention 需显式指定，见下文），也可通过[环境变量](../../Pipeline_Usage/Environment_Variables.md#diffsynth_attention_implementation)控制。
 
 ```python
 from diffsynth.core.attention import attention_forward
@@ -69,9 +69,63 @@ print((output_1 - output_2).abs().mean())
 
 请注意，加速的同时会引入误差，但在大多数情况下误差是可以忽略不计的。
 
+## 可用的实现
+
+`DiffSynth-Studio` 在导入 `diffsynth.core.attention` 时检测已安装的包，只注册当前环境中真正可用的实现。若未设置 `DIFFSYNTH_ATTENTION_IMPLEMENTATION`，则按以下顺序选择第一个可用的实现：
+
+1. `customized_fa_kernel`
+2. `flash_attention_4`
+3. `flash_attention_3`
+4. `flash_attention_2`
+5. `xformers`
+6. `torch`
+
+`sage_attention` 不在自动选择的序列中。Sage Attention 的梯度反向传播存在较大误差，会导致训练效果变差，因此我们不再自动启用它。如需使用，请显式设置[环境变量](../../Pipeline_Usage/Environment_Variables.md#diffsynth_attention_implementation) `DIFFSYNTH_ATTENTION_IMPLEMENTATION=sage_attention`；我们也不建议将其用于训练。
+
+当前已注册的实现可以通过如下代码查看：
+```python
+from diffsynth.core.attention import list_attention_implementations
+
+print(list_attention_implementations())
+```
+
+| 名称 | 依赖 | `is_causal` | `attn_mask` | `window_size` |
+| --- | --- | --- | --- | --- |
+| `customized_fa_kernel` | 配置了 `DIFFSYNTH_FLASH_ATTN_KERNEL_REPO_ID` 的 `kernels` | ✅ | ❌ | ✅ |
+| `flash_attention_4` | `flash_attn.cute` | ✅ | ❌ | ✅ |
+| `flash_attention_3` | `flash_attn_3` | ✅ | ❌ | ✅ |
+| `flash_attention_2` | `flash_attn` | ✅ | ❌ | ✅ |
+| `sage_attention` | `sageattention` | ❌ | ❌ | ❌ |
+| `xformers` | `xformers` | ❌ | ❌ | ❌ |
+| `torch` | `torch.nn.functional.scaled_dot_product_attention` | ✅ | ✅ | ✅ |
+
+若选中的实现不支持 `attn_mask`、`window_size` 或 `is_causal`，`attention_forward` 会在该次调用中回退到 `torch` 实现，结果依然正确，只是速度较慢。
+
 ## 开发者导引
 
 在为 `DiffSynth-Studio` 接入新模型时，开发者可自行决定是否调用 `diffsynth.core.attention` 中的 `attention_forward`，但我们期望模型能够尽可能优先调用这一模块，以便让新的注意力机制实现能够在这些模型上直接生效。
+
+### 注册新的实现
+
+可以通过 `register_attention_implementation` 注册新的注意力实现：
+```python
+from diffsynth.core.attention import list_attention_implementations
+from diffsynth.core.attention.registry import register_attention_implementation
+
+register_attention_implementation(
+    "my_attention",
+    my_attention_func,
+    supports_causal=True,
+    supports_window=False,
+    supports_mask=False,
+)
+
+print(list_attention_implementations())
+```
+
+`my_attention_func` 需接受 `q, k, v, q_pattern, k_pattern, v_pattern, out_pattern, dims`，以及所声明支持的关键字参数：`scale`，以及 `is_causal`、`attn_mask`、`window_size` 中的若干项。`attention_forward` 只会传入所声明支持的关键字参数。`supports_gqa` 目前为保留字段，尚不影响路由行为。
+
+注册后即可通过环境变量选用该实现，例如 `DIFFSYNTH_ATTENTION_IMPLEMENTATION=my_attention`。注册需在首次调用 `attention_forward` 之前完成（例如在提供该实现的包被 import 时注册）。
 
 ## 最佳实践
 

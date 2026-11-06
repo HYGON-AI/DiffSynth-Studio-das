@@ -605,6 +605,53 @@ ernie_image_series = [
     },
 ]
 
+moss_image_series = [
+    {
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-Base", origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors")
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-SFT", origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors")
+        "model_hash": "b2e1de16b1415bb811bcfc428d7991a7",
+        "model_name": "moss_image_dit",
+        "model_class": "diffsynth.models.moss_image_dit.MOSSImageDiT",
+    },
+    {
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-Base", origin_file_pattern="text_encoder/model*.safetensors")
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-SFT", origin_file_pattern="text_encoder/model*.safetensors")
+        "model_hash": "a7140be40b65f94f31942d5b5225f781",
+        "model_name": "moss_image_text_encoder",
+        "model_class": "diffsynth.models.moss_image_text_encoder.MOSSImageTextEncoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.moss_image_text_encoder.MOSSImageTextEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-Base", origin_file_pattern="vae/diffusion_pytorch_model.safetensors")
+        # Example: ModelConfig(model_id="openmoss/MOSS-Image-SFT", origin_file_pattern="vae/diffusion_pytorch_model.safetensors")
+        "model_hash": "dc89b5bac72b57182f384e21632db90d",
+        "model_name": "flux2_vae",
+        "model_class": "diffsynth.models.flux2_vae.Flux2VAE",
+        "extra_kwargs": {"decoder_block_out_channels": [96, 192, 384, 384]}
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/MOSS-Image-EntroPack", origin_file_pattern="models/MOSS-Image-Base/dit_6bit.safetensors")
+        "model_hash": "b895b1ad67dd7a9f225dc4ad7dcec3f2",
+        "model_name": "moss_image_dit",
+        "model_class": "diffsynth.models.moss_image_dit.MOSSImageDiT",
+        "quant_config": {"method": "entropack_lossy_quant", "load_prequantized": True, "backend_config_kwargs": {"target_bpp": 6.0, "row_rdo_iterations": 2, "row_rdo_candidates": 20}},
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/MOSS-Image-EntroPack", origin_file_pattern="models/MOSS-Image-SFT/dit_6bit.safetensors")
+        "model_hash": "6f2e6e215ce1ad45e42ef84632165fbd",
+        "model_name": "moss_image_dit",
+        "model_class": "diffsynth.models.moss_image_dit.MOSSImageDiT",
+        "quant_config": {"method": "entropack_lossy_quant", "load_prequantized": True, "backend_config_kwargs": {"target_bpp": 6.0, "row_rdo_iterations": 2, "row_rdo_candidates": 20}},
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/MOSS-Image-EntroPack", origin_file_pattern="models/text_encoder_6bit.safetensors")
+        "model_hash": "c857c646d678fc7f40fe8465524efeeb",
+        "model_name": "moss_image_text_encoder",
+        "model_class": "diffsynth.models.moss_image_text_encoder.MOSSImageTextEncoder",
+        "quant_config": {"method": "entropack_lossy_quant", "load_prequantized": True, "backend_config_kwargs": {"target_bpp": 6.0, "row_rdo_iterations": 2, "row_rdo_candidates": 20}},
+    },
+]
+
 z_image_series = [
     {
         # Example: ModelConfig(model_id="Tongyi-MAI/Z-Image-Turbo", origin_file_pattern="transformer/*.safetensors")
@@ -850,7 +897,7 @@ ltx2_series = [
         "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_text_encoder.LTX2TextEncoderPostModulesStateDictConverter",
     },
     {
-        # Example: ModelConfig(model_id="Lightricks/LTX-2.3", origin_file_pattern="ltx-2.3-spatial-upscaler-x2-1.0.safetensors")
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.3", origin_file_pattern="ltx-2.3-spatial-upscaler-x2-1.1.safetensors")
         "model_hash": "aed408774d694a2452f69936c32febb5",
         "model_name": "ltx2_latent_upsampler",
         "model_class": "diffsynth.models.ltx2_upsampler.LTX2LatentUpsampler",
@@ -894,6 +941,104 @@ ltx2_series = [
         "model_class": "diffsynth.models.ltx2_text_encoder.LTX2TextEncoderPostModules",
         "extra_kwargs": {"separated_audio_video": True, "embedding_dim_gemma": 3840, "num_layers_gemma": 49, "video_attention_heads": 32, "video_attention_head_dim": 128, "audio_attention_heads": 32, "audio_attention_head_dim": 64, "num_connector_layers": 8, "apply_gated_attention": True},
         "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_text_encoder.LTX2TextEncoderPostModulesStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="diffusion_models/ltx-2.5-22b-dev-transformer-bf16.safetensors")
+        "model_hash": "7960c5dc4626650824e36f65a8e992e9",
+        "model_name": "ltx2_dit",
+        "model_class": "diffsynth.models.ltx2_dit.LTXModel",
+        "extra_kwargs": {"caption_channels": None, "apply_gated_attention": True, "cross_attention_adaln": True, "ff_bias": False, "use_keyframes_abs_pos_embedding": True, "use_tokenwise_av_ca_scale_shift": True},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_dit.LTXModelStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors")
+        "model_hash": "57343d320cac0bbba58a488b8ebe7187",
+        "model_name": "ltx2_dit",
+        "model_class": "diffsynth.models.ltx2_dit.LTXModel",
+        "extra_kwargs": {"caption_channels": None, "apply_gated_attention": True, "cross_attention_adaln": True, "ff_bias": False, "use_keyframes_abs_pos_embedding": True, "use_tokenwise_av_ca_scale_shift": True},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_dit.LTXModelStateDictConverter",
+        "quant_config": {"method": "comfy_kitchen_int8_w8a8", "load_prequantized": True, "exclude_modules": ["timestep_embedder.linear_1", "timestep_embedder.linear_2", "adaln_single.linear", "audio_adaln_single.linear", "prompt_adaln_single.linear", "audio_prompt_adaln_single.linear", "av_ca_a2v_gate_adaln_single.linear", "av_ca_audio_scale_shift_adaln_single.linear", "av_ca_v2a_gate_adaln_single.linear", "av_ca_video_scale_shift_adaln_single.linear", "patchify_proj", "audio_patchify_proj", "proj_out", "audio_proj_out", "to_gate_logits"]},
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/LTX-2.5-Repackage", origin_file_pattern="text_encoder_post_modules.safetensors")
+        "model_hash": "8f3c146ff3d584392236c5b29d26146c",
+        "model_name": "ltx2_text_encoder_post_modules",
+        "model_class": "diffsynth.models.ltx25_text_encoder.LTX25TextEncoderPostModules",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors")
+        "model_hash": "055700dc619165899bebb5162f699cd2",
+        "model_name": "ltx2_text_encoder",
+        "model_class": "diffsynth.models.ltx25_text_encoder.LTX25TextEncoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx25_text_encoder.LTX25TextEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors")
+        "model_hash": "4743ded7a5725b6589bccdb62512723b",
+        "model_name": "ltx2_text_encoder",
+        "model_class": "diffsynth.models.ltx25_text_encoder.LTX25TextEncoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx25_text_encoder.LTX25TextEncoderStateDictConverter",
+        "quant_config": {"method": "comfy_kitchen_int8_w8a8", "load_prequantized": True, "exclude_modules": ["lm_head", "embedding_projection", "patch_dense"]},
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-video-vae-bf16.safetensors")
+        "model_hash": "e19205490f01801d0a7b6d3aba61e26e",
+        "model_name": "ltx2_video_vae_encoder",
+        "model_class": "diffsynth.models.ltx2_video_vae.LTX2VideoEncoder",
+        "extra_kwargs": {"encoder_version": "ltx-2.3"},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_video_vae.LTX2VideoEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-video-vae-bf16.safetensors")
+        "model_hash": "e19205490f01801d0a7b6d3aba61e26e",
+        "model_name": "ltx25_diffusion_video_vae_decoder",
+        "model_class": "diffsynth.models.ltx25_diffusion_video_vae.LTX25DiffusionVideoDecoder",
+        "extra_kwargs": {"stage_channels": [2048, 1024, 512, 512, 256], "stage_depths": [4, 6, 4, 2, 8], "stage_kernels": [[3, 7, 7], [3, 7, 7], [3, 5, 5], [3, 5, 5], [11, 11, 11]], "stage5_kernel": [11, 11, 11], "timestep_scale_multiplier": 1000.0, "default_num_inference_steps": 1, "model_output_type": "x0"},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx25_diffusion_video_vae.LTX25DiffusionVideoDecoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-video-vae-conv-bf16.safetensors")
+        "model_hash": "a1d642eecae96baa9c31d4e405564f49",
+        "model_name": "ltx2_video_vae_encoder",
+        "model_class": "diffsynth.models.ltx2_video_vae.LTX2VideoEncoder",
+        "extra_kwargs": {"encoder_version": "ltx-2.3"},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_video_vae.LTX2VideoEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-video-vae-conv-bf16.safetensors")
+        "model_hash": "a1d642eecae96baa9c31d4e405564f49",
+        "model_name": "ltx2_video_vae_decoder",
+        "model_class": "diffsynth.models.ltx2_video_vae.LTX2VideoDecoder",
+        "extra_kwargs": {"decoder_version": "ltx-2.3"},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_video_vae.LTX2VideoDecoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-audio-vae-bf16.safetensors")
+        "model_hash": "c2488315f13356abb806f9f217f1e803",
+        "model_name": "ltx2_audio_vae_decoder",
+        "model_class": "diffsynth.models.ltx2_audio_vae.LTX2AudioDecoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_audio_vae.LTX2AudioDecoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-audio-vae-bf16.safetensors")
+        "model_hash": "c2488315f13356abb806f9f217f1e803",
+        "model_name": "ltx2_audio_vocoder",
+        "model_class": "diffsynth.models.ltx2_audio_vae.LTX2VocoderWithBWE",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_audio_vae.LTX2VocoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="vae/ltx-2.5-audio-vae-bf16.safetensors")
+        "model_hash": "c2488315f13356abb806f9f217f1e803",
+        "model_name": "ltx2_audio_vae_encoder",
+        "model_class": "diffsynth.models.ltx2_audio_vae.LTX2AudioEncoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx2_audio_vae.LTX2AudioEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="Lightricks/LTX-2.5", origin_file_pattern="model_patches/ltx-2.5-duration-head-bf16.safetensors")
+        "model_hash": "35840495e440a4f00946450269299bd6",
+        "model_name": "ltx25_duration_head",
+        "model_class": "diffsynth.models.ltx25_duration_head.LTX25DurationHead",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.ltx25_duration_head.LTX25DurationHeadStateDictConverter",
     },
 ]
 anima_series = [
@@ -1116,14 +1261,6 @@ joyai_image_series = [
         "model_name": "joyai_image_dit",
         "model_class": "diffsynth.models.joyai_image_dit.JoyAIImageDiT",
     },
-    {
-        # Example: ModelConfig(model_id="jd-opensource/JoyAI-Image-Edit", origin_file_pattern="JoyAI-Image-Und/model-*.safetensors")
-        # Example: ModelConfig(model_id="DiffSynth-Studio/ImageMetrics", origin_file_pattern="UnifiedReward-Edit-qwen3vl-8b/model-*.safetensors")
-        "model_hash": "2d11bf14bba8b4e87477c8199a895403",
-        "model_name": "joyai_image_text_encoder",
-        "model_class": "diffsynth.models.joyai_image_text_encoder.JoyAIImageTextEncoder",
-        "state_dict_converter": "diffsynth.utils.state_dict_converters.joyai_image_text_encoder.JoyAIImageTextEncoderStateDictConverter",
-    },
 ]
 
 boogu_image_series = [
@@ -1202,10 +1339,23 @@ ace_step_series = [
         "state_dict_converter": "diffsynth.utils.state_dict_converters.ace_step_tokenizer.AceStepTokenizerStateDictConverter",
     },
     {
-        # Example: ???
+        # Example: ModelConfig(model_id="DiffSynth-Studio/DiffSynth-Music-Tools", origin_file_pattern="track_separator/model.safetensors")
         "model_hash": "ff74b1806e6a0b52e7bbd1d3df2d26d1",
         "model_name": "demucs",
         "model_class": "diffsynth.models.demucs.HTDemucs",
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/DiffSynth-Music-Tools", origin_file_pattern="transformer/model.safetensors")
+        "model_hash": "167b8d453605e3d72076f88790528f8e",
+        "model_name": "diffsynth_music_dit",
+        "model_class": "diffsynth.models.diffsynth_music_dit.DiffSynthMusicDiTModel",
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/DiffSynth-Music-Tools", origin_file_pattern="conditioner/model.safetensors")
+        "model_hash": "d6c90aec3f282bde16298e0221413098",
+        "model_name": "ace_step_conditioner",
+        "model_class": "diffsynth.models.ace_step_conditioner.AceStepConditionEncoder",
+        "extra_kwargs": {"placeholder_shape": (1, 15000, 64)},
     },
 ]
 
@@ -1534,6 +1684,29 @@ minimax_h3_series = [
         "extra_kwargs": {'control_layers': (0, 10, 20, 30, 40), 'control_in_dim': 49, 'control_apply_audio': False, 'hidden_size': 5376, 'num_attention_heads': 56, 'attention_head_dim': 128, 'ffn_hidden_size': 14336, 'time_embed_dim': 2688, 'adaln_out_features': 96768, 'patch_size': (1, 2, 2), 'norm_eps': 1e-05, 'qk_norm_eps': 1e-05},
         "state_dict_converter": "diffsynth.utils.state_dict_converters.minimax_h3_controlnet.MiniMaxH3ControlNetStateDictConverter"
     },
+    {
+        # Example: ModelConfig(model_id="WarmBloodAban/Minimax-h3_Singularity", origin_file_pattern="Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8.safetensors")
+        "model_hash": "c00577940e5a11f0fb5a0a754ac6003d",
+        "model_name": "minimax_h3_dit",
+        "model_class": "diffsynth.models.minimax_h3_dit_comfy.MiniMaxH3DiTComfyPruned",
+        "quant_config": {"method": "comfy_kitchen_int8_w8a8", "load_prequantized": True, "exclude_modules": ["video_patch_proj", "audio_patch_proj", "condition_proj", "adaln_proj.linear", "final_layer.video_out", "final_layer.audio_out", "token_refiner.blocks.0.attn.qkv_proj", "token_refiner.blocks.0.attn.out_proj", "token_refiner.blocks.0.mlp.fc1", "token_refiner.blocks.0.mlp.fc2", "token_refiner.blocks.1.attn.qkv_proj", "token_refiner.blocks.1.attn.out_proj", "token_refiner.blocks.1.mlp.fc1", "token_refiner.blocks.1.mlp.fc2"]},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.minimax_h3_dit.MiniMaxH3DiTSingularityStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="WarmBloodAban/Minimax-h3_Singularity", origin_file_pattern="Minimax-h3_Singularity_ref2va_v1.3_int8.safetensors")
+        "model_hash": "dea0301a17c3e68100ecc6cf9f52e2e5",
+        "model_name": "minimax_h3_dit",
+        "model_class": "diffsynth.models.minimax_h3_dit_comfy.MiniMaxH3DiTComfy",
+        "quant_config": {"method": "comfy_kitchen_int8_w8a8", "load_prequantized": True, "exclude_modules": ["video_patch_proj", "audio_patch_proj", "condition_proj", "time_embedder.proj_in", "time_embedder.proj_out", "final_layer.adaln_proj.linear", "final_layer.video_out", "final_layer.audio_out", "token_refiner.blocks.0.attn.qkv_proj", "token_refiner.blocks.0.attn.out_proj", "token_refiner.blocks.0.mlp.fc1", "token_refiner.blocks.0.mlp.fc2", "token_refiner.blocks.1.attn.qkv_proj", "token_refiner.blocks.1.attn.out_proj", "token_refiner.blocks.1.mlp.fc1", "token_refiner.blocks.1.mlp.fc2"]},
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.minimax_h3_dit.MiniMaxH3DiTSingularityStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="OpenVDN/vdn-minimax-h3", origin_file_pattern="stage-dmd-step-250/linear_branch/model.safetensors")
+        "model_hash": "6b8d2b6ae09fc45cbe3e5a9a57e4512a",
+        "model_name": "minimax_h3_vdn_linear_branch",
+        "model_class": "diffsynth.models.minimax_h3_dit_vdn.MiniMaxH3VDNBranch",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.minimax_h3_dit_vdn.MiniMaxH3VDNBranchStateDictConverter",
+    },
 ]
 
 minimax_music3_series = [
@@ -1579,8 +1752,110 @@ sensenova_u1_series = [
     },
 ]
 
+yue2_series = [
+    {
+        # Example: ModelConfig(model_id="m-a-p/YuE2-3B", origin_file_pattern="model.safetensors")
+        "model_hash": "bbf2429c299689138aaea6cd6a9b80ab",
+        "model_name": "yue2_mot",
+        "model_class": "diffsynth.models.yue2_mot.YuE2MoT",
+    },
+    {
+        # Example: ModelConfig(model_id="m-a-p/YuE2-Vae", origin_file_pattern="model.safetensors")
+        "model_hash": "2c8808833766c8bb497b44aaa90bfb45",
+        "model_name": "yue2_vae",
+        "model_class": "diffsynth.models.yue2_vae.YuE2VAEModel",
+    },
+]
+
+qwen_image_21_series = [
+    {
+        # Example: ModelConfig(model_id="Qwen/Qwen-Image-2.1", origin_file_pattern="transformer/diffusion_pytorch_model*.safetensors")
+        "model_hash": "4c9f4f5bdeb5c737742ad8e4080221d1",
+        "model_name": "qwen_image_21_dit",
+        "model_class": "diffsynth.models.qwen_image_21_dit.QwenImage21DiT",
+    },
+    {
+        # Example: ModelConfig(model_id="Qwen/Qwen-Image-2.1", origin_file_pattern="vae/diffusion_pytorch_model.safetensors")
+        "model_hash": "959403bfea52f7c5a3ccf82274f7e9ef",
+        "model_name": "qwen_image_21_vae",
+        "model_class": "diffsynth.models.qwen_image_21_vae.QwenImage21VAE",
+    },
+    {
+        # Example: ModelConfig(model_id="Qwen/Qwen-Image-2.1", origin_file_pattern="text_encoder/model*.safetensors")
+        # Example: ModelConfig(model_id="jd-opensource/JoyAI-Image-Edit", origin_file_pattern="JoyAI-Image-Und/model-*.safetensors")
+        # Example: ModelConfig(model_id="DiffSynth-Studio/ImageMetrics", origin_file_pattern="UnifiedReward-Edit-qwen3vl-8b/model-*.safetensors")
+        "model_hash": "2d11bf14bba8b4e87477c8199a895403",
+        "model_name": "qwen_image_21_text_encoder",
+        "model_class": "diffsynth.models.qwen_image_21_text_encoder.QwenImage21TextEncoder",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.qwen_image_21_text_encoder.QwenImage21TextEncoderStateDictConverter",
+    },
+    {
+        # Example: ModelConfig(model_id="PAI/Qwen-Image-2.1-Fun-Controlnet-Union", origin_file_pattern="Qwen-Image-2.1-Fun-Controlnet-Union.safetensors")
+        "model_hash": "21fca5e7dc68c836804b46f735677546",
+        "model_name": "qwen_image_21_controlnet",
+        "model_class": "diffsynth.models.qwen_image_21_controlnet.QwenImage21ControlNet",
+    },
+]
+
+flux3_series = [
+    {
+        # Example: ModelConfig(model_id="black-forest-labs/flux-3-image-klein", origin_file_pattern="model.safetensors")
+        "model_hash": "cb8e9c6df08faa5cf99c11be4d34d26b",
+        "model_name": "flux3_dit",
+        "model_class": "diffsynth.models.flux3_dit.Flux3DiT",
+        "extra_kwargs": {"flow_map": True},
+    },
+    {
+        # Example: ModelConfig(model_id="black-forest-labs/flux-3-image-klein", origin_file_pattern="transformer/*.safetensors")
+        "model_hash": "d98fcf51c088ad9910399b0d7fdfe692",
+        "model_name": "flux3_dit",
+        "model_class": "diffsynth.models.flux3_dit.Flux3DiTDiffusers",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.flux3_dit.Flux3DiTFromDiffusers",
+        "extra_kwargs": {"flow_map": True},
+    },
+    {
+        # Example: ModelConfig(model_id="black-forest-labs/flux-3-image-klein-base", origin_file_pattern="model.safetensors")
+        "model_hash": "3a12023223002ebc2f30c85d3d1257ea",
+        "model_name": "flux3_dit",
+        "model_class": "diffsynth.models.flux3_dit.Flux3DiT",
+    },
+    {
+        # Example: ModelConfig(model_id="black-forest-labs/flux-3-image-klein-base", origin_file_pattern="transformer/*.safetensors")
+        "model_hash": "fb4609249d89aeb716222378f92005ce",
+        "model_name": "flux3_dit",
+        "model_class": "diffsynth.models.flux3_dit.Flux3DiTDiffusers",
+        "state_dict_converter": "diffsynth.utils.state_dict_converters.flux3_dit.Flux3DiTFromDiffusers",
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/flux-3-image-klein-entropack", origin_file_pattern="models/dit_4bit.safetensors")
+        "model_hash": "3899702d86c8f8249bdb1535359c424b",
+        "model_name": "flux3_dit",
+        "model_class": "diffsynth.models.flux3_dit.Flux3DiT",
+        "extra_kwargs": {"flow_map": True},
+        "quant_config": {"method": "entropack_lossy_quant", "load_prequantized": True, "backend_config_kwargs": {"target_bpp": 4.0, "row_rdo_iterations": 2, "row_rdo_candidates": 20}},
+    },
+    {
+        # Example: ModelConfig(model_id="DiffSynth-Studio/flux-3-image-klein-entropack", origin_file_pattern="models/text_encoder_4bit.safetensors")
+        "model_hash": "05233849ee3764c2665a2165b5d4adff",
+        "model_name": "krea2_text_encoder",
+        "model_class": "diffsynth.models.krea2_text_encoder.Krea2TextEncoder",
+        "quant_config": {"method": "entropack_lossy_quant", "load_prequantized": True, "backend_config_kwargs": {"target_bpp": 4.0, "row_rdo_iterations": 2, "row_rdo_candidates": 20}},
+    },
+]
+
+fibo_series = [
+    {
+        # Example: ModelConfig(model_id="briaai/Fibo-2.0-dev", origin_file_pattern="transformer/*.safetensors")
+        # Example: ModelConfig(model_id="briaai/Fibo-2.0-edit-turbo", origin_file_pattern="transformer/*.safetensors")
+        "model_hash": "39f09f95705fd6d9b20670f1923d3c12",
+        "model_name": "fibo_dit",
+        "model_class": "diffsynth.models.fibo_dit.FiboDiT",
+    },
+]
+
 MODEL_CONFIGS = (
     stable_diffusion_xl_series + stable_diffusion_series + qwen_image_series + qwen_video_edit_series + wan_series + flux_series + flux2_series + ernie_image_series
     + z_image_series + ltx2_series + anima_series + mova_series + joyai_image_series + boogu_image_series + ace_step_series + hidream_o1_image_series
     + image_metrics_series + ideogram4_series + krea2_series + lingbot_video_series + minimax_h3_series + minimax_music3_series + sensenova_u1_series
+    + yue2_series + qwen_image_21_series + flux3_series + moss_image_series + fibo_series
 )
