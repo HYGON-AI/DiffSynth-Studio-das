@@ -1,6 +1,5 @@
 import math, warnings, time
-import torch, torchvision, imageio, os
-import imageio.v3 as iio
+import torch, os
 import urllib.request
 from io import BytesIO
 from PIL import Image
@@ -100,16 +99,20 @@ class ImageCropAndResize(DataProcessingOperator):
         self.max_pixels = max_pixels
         self.height_division_factor = height_division_factor
         self.width_division_factor = width_division_factor
+        import torchvision
+        self.resize = torchvision.transforms.functional.resize
+        self.center_crop = torchvision.transforms.functional.center_crop
+        self.interpolation_mode = torchvision.transforms.InterpolationMode.BILINEAR
 
     def crop_and_resize(self, image, target_height, target_width):
         width, height = image.size
         scale = max(target_width / width, target_height / height)
-        image = torchvision.transforms.functional.resize(
+        image = self.resize(
             image,
             (round(height*scale), round(width*scale)),
-            interpolation=torchvision.transforms.InterpolationMode.BILINEAR
+            interpolation=self.interpolation_mode
         )
-        image = torchvision.transforms.functional.center_crop(image, (target_height, target_width))
+        image = self.center_crop(image, (target_height, target_width))
         return image
     
     def get_height_width(self, image):
@@ -143,6 +146,7 @@ class FrameSamplerByRateMixin:
         self.fix_frame_rate = fix_frame_rate
 
     def get_reader(self, data: str):
+        import imageio
         return imageio.get_reader(data)
 
     def get_available_num_frames(self, reader):
@@ -213,6 +217,7 @@ class LoadGIF(DataProcessingOperator):
 
     def get_num_frames(self, path):
         num_frames = self.num_frames
+        import imageio.v3 as iio
         images = iio.imread(path, mode="RGB")
         if len(images) < num_frames:
             num_frames = len(images)
@@ -223,6 +228,7 @@ class LoadGIF(DataProcessingOperator):
     def __call__(self, data: str):
         num_frames = self.get_num_frames(data)
         frames = []
+        import imageio.v3 as iio
         images = iio.imread(data, mode="RGB")
         for img in images:
             frame = Image.fromarray(img)
@@ -339,3 +345,50 @@ class LoadPureAudioWithTorchaudio(DataProcessingOperator):
         except Exception as e:
             print(f"Cannot load audio in {data} due to {e}. The audio will be `None`.")
             return None
+
+
+class LoadMultiTrackAudio(DataProcessingOperator):
+    def __init__(self, target_sample_rate=48000, max_audio_duration=None, division_factor=1):
+        self.target_sample_rate = target_sample_rate
+        self.max_audio_duration = max_audio_duration
+        self.division_factor = division_factor
+        import torchaudio
+        self.audio_loader = torchaudio.load
+        self.audio_resampler = torchaudio.functional.resample
+
+    def load_audio(self, path):
+        waveform, sample_rate = self.audio_loader(path)
+        if len(waveform.shape) == 2 and waveform.shape[0] == 1:
+            waveform = repeat(waveform, "c l -> (n c) l", n=2)
+        if self.target_sample_rate is not None and sample_rate != self.target_sample_rate:
+            waveform = self.audio_resampler(waveform, sample_rate, self.target_sample_rate)
+            sample_rate = self.target_sample_rate
+        if self.max_audio_duration is not None and waveform.shape[1] > sample_rate * self.max_audio_duration:
+            waveform = waveform[:, :int(sample_rate * self.max_audio_duration)]
+        if self.division_factor is not None:
+            waveform = waveform[:, :waveform.shape[1] // self.division_factor * self.division_factor]
+        return waveform
+
+    def load_latents(self, path):
+        latents = torch.load(path, weights_only=True, map_location="cpu")
+        return latents
+
+    def load_single_data(self, path):
+        if path is None:
+            return None
+        elif path.endswith(".pth"):
+            return self.load_latents(path)
+        else:
+            return self.load_audio(path)
+
+    def __call__(self, data):
+        if isinstance(data, str):
+            return self.load_single_data(data)
+        else:
+            audio = {}
+            for name, path in data.items():
+                audio[name] = self.load_single_data(path)
+            min_length = min([audio[name].shape[1] for name in audio if audio[name] is not None])
+            min_length = min_length // self.division_factor * self.division_factor
+            audio = {name: audio[name][:, :min_length] for name in audio}
+        return audio

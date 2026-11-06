@@ -128,6 +128,7 @@ class AutoWrappedModule(AutoTorchModule):
         else:
             self.disk_offload = False
             
+    @torch._dynamo.disable
     def load_from_disk(self, torch_dtype, device, copy_module=False):
         if copy_module:
             module = copy.deepcopy(self.module)
@@ -245,9 +246,33 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
         if self.disk_offload:
             self.required_params = [name for name, _ in self.module.named_parameters(recurse=False)]
             
+    def _copy_with_shared_children(self, module):
+        # Child wrappers own their DiskMap and devices; share them instead of copying.
+        shared = {id(child): child for child in module.modules() if isinstance(child, AutoTorchModule)}
+        return copy.deepcopy(module, shared), set(shared)
+
+    def _detach_shared_children(self, module, shared_ids):
+        detached = []
+        for parent in list(module.modules()):
+            if isinstance(parent, AutoTorchModule):
+                continue
+            original = parent._modules
+            filtered = type(original)(
+                (name, child) for name, child in original.items() if id(child) not in shared_ids
+            )
+            if len(filtered) != len(original):
+                parent._modules = filtered
+                detached.append((parent, original))
+        return detached
+
+    def _restore_shared_children(self, detached):
+        for parent, original in detached:
+            parent._modules = original
+
+    @torch._dynamo.disable
     def load_from_disk(self, torch_dtype, device, copy_module=False):
         if copy_module:
-            module = copy.deepcopy(self.module)
+            module, shared_ids = self._copy_with_shared_children(self.module)
         else:
             module = self.module
         state_dict = {}
@@ -255,7 +280,14 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
             param = self.disk_map[self.param_name(name)]
             param = param.to(dtype=torch_dtype, device=device)
             state_dict[name] = param
-        module.load_state_dict(state_dict, assign=True, strict=False)
+        if copy_module:
+            detached = self._detach_shared_children(module, shared_ids)
+            try:
+                module.load_state_dict(state_dict, assign=True, strict=False)
+            finally:
+                self._restore_shared_children(detached)
+        else:
+            module.load_state_dict(state_dict, assign=True, strict=False)
         return module
     
     def offload_to_disk(self, model: torch.nn.Module):
@@ -263,8 +295,13 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
             getattr(self, name).to("meta")
     
     def cast_to(self, module, dtype, device):
-        # Parameter casting is implemented in the model architecture.
-        return module
+        result, shared_ids = self._copy_with_shared_children(module)
+        detached = self._detach_shared_children(result, shared_ids)
+        try:
+            result = result.to(dtype=dtype, device=device)
+        finally:
+            self._restore_shared_children(detached)
+        return result
     
     def __getattr__(self, name):
         if name in self.__dict__ or name == "module":
@@ -374,6 +411,7 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule, LoRAHotLoadMixin):
         result = result.reshape(new_shape)
         return result
             
+    @torch._dynamo.disable
     def load_from_disk(self, torch_dtype, device, assign=True):
         weight = self.disk_map[self.name + ".weight"].to(dtype=torch_dtype, device=device)
         bias = None if self.bias is None else self.disk_map[self.name + ".bias"].to(dtype=torch_dtype, device=device)
@@ -495,6 +533,7 @@ class AutoWrappedQuantizedModule(torch.nn.Linear, AutoTorchModule, LoRAHotLoadMi
             self._required_keys = [key for key in self.disk_map if key.startswith(self.name + ".")]
         return self._required_keys
 
+    @torch._dynamo.disable
     def _load_from_disk(self, device, target=None):
         module = self.module if target is None else target
         prefix = self.name + "."
@@ -527,6 +566,7 @@ class AutoWrappedQuantizedModule(torch.nn.Linear, AutoTorchModule, LoRAHotLoadMi
                 self.module.to(device=self.onload_device)
             self.state = 1
 
+    @torch._dynamo.disable
     def preparing(self):
         if self.state != 2:
             if self.disk_offload and self.preparing_device != "disk" and self.onload_device == "disk":
@@ -535,6 +575,7 @@ class AutoWrappedQuantizedModule(torch.nn.Linear, AutoTorchModule, LoRAHotLoadMi
                 self.module.to(device=self.preparing_device)
             self.state = 2
 
+    @torch._dynamo.disable
     def computation_module(self):
         device = self.preparing_device if self.state == 2 else self.onload_device
         if device == self.computation_device:

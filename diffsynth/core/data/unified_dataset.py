@@ -1,6 +1,6 @@
 # Modified by Hygon Information Technology Co., Ltd., 2026.
 from .operators import *
-import torch, json, pandas
+import torch, json, os
 
 
 class UnifiedDataset(torch.utils.data.Dataset):
@@ -31,10 +31,11 @@ class UnifiedDataset(torch.utils.data.Dataset):
         base_path="",
         max_pixels=1920*1080, height=None, width=None,
         height_division_factor=16, width_division_factor=16,
+        convert_RGB=True, convert_RGBA=False,
     ):
         return RouteByType(operator_map=[
-            (str, ToAbsolutePath(base_path) >> LoadImage() >> ImageCropAndResize(height, width, max_pixels, height_division_factor, width_division_factor)),
-            (list, SequencialProcess(ToAbsolutePath(base_path) >> LoadImage() >> ImageCropAndResize(height, width, max_pixels, height_division_factor, width_division_factor))),
+            (str, ToAbsolutePath(base_path) >> LoadImage(convert_RGB, convert_RGBA) >> ImageCropAndResize(height, width, max_pixels, height_division_factor, width_division_factor)),
+            (list, SequencialProcess(ToAbsolutePath(base_path) >> LoadImage(convert_RGB, convert_RGBA) >> ImageCropAndResize(height, width, max_pixels, height_division_factor, width_division_factor))),
         ])
     
     @staticmethod
@@ -85,6 +86,7 @@ class UnifiedDataset(torch.utils.data.Dataset):
                     metadata.append(json.loads(line.strip()))
             self.data = metadata
         else:
+            import pandas
             metadata = pandas.read_csv(metadata_path)
             self.data = [metadata.iloc[i].to_dict() for i in range(len(metadata))]
 

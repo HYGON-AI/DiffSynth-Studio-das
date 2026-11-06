@@ -33,6 +33,7 @@ Welcome to DiffSynth-Studio's Documentation
    Model_Details/Z-Image
    Model_Details/Anima
    Model_Details/LTX-2
+   Model_Details/LTX-2.5
    Model_Details/ERNIE-Image
    Model_Details/JoyAI-Image
    Model_Details/ACE-Step
@@ -45,8 +46,14 @@ Welcome to DiffSynth-Studio's Documentation
    Model_Details/Boogu-Image
    Model_Details/LingBot-Video
    Model_Details/MiniMax-H3
+   Model_Details/DiffSynth-Music
    Model_Details/MiniMax-Music3
+   Model_Details/YuE2
    Model_Details/SenseNova-U1
+   Model_Details/Qwen-Image-2.1
+   Model_Details/FLUX.3
+   Model_Details/MOSS-Image
+   Model_Details/Fibo
 
 .. toctree::
    :maxdepth: 2
@@ -55,6 +62,7 @@ Welcome to DiffSynth-Studio's Documentation
    Training/Understanding_Diffusion_models
    Training/Supervised_Fine_Tuning
    Training/FP8_Precision
+   Training/Distillation
    Training/Direct_Distill
    Training/Split_Training
    Training/Differential_LoRA
