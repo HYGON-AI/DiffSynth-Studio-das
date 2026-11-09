@@ -8,11 +8,10 @@ set -euo pipefail
 # replaces the default "./models" root, so the paths below resolve to
 #   path/to/models/MiniMax/MiniMax-H3/Ref2VA/...
 # Adjust this to wherever the weights actually live on your node.
-export DIFFSYNTH_MODEL_BASE_PATH=path/to/models
+export DIFFSYNTH_MODEL_BASE_PATH="${DIFFSYNTH_MODEL_BASE_PATH:?Set the local model root}"
 export DIFFSYNTH_SKIP_DOWNLOAD=True
 export HSA_FORCE_FINE_GRAIN_PCIE=1
 export WANDB_MODE=offline
-export DIFFSYNTH_CPU_ADAM_PIPELINE="${DIFFSYNTH_CPU_ADAM_PIPELINE:-off}"
 
 modelscope download --dataset DiffSynth-Studio/diffsynth_example_dataset --include "minimax_h3/MiniMax-H3-Ref2VA/*" --local_dir ./data/diffsynth_example_dataset
 
@@ -61,7 +60,5 @@ accelerate launch --config_file examples-hcu/MiniMax-H3/configs/accelerate_zero3
   --trainable_models "dit" \
   --use_gradient_checkpointing \
   --find_unused_parameters \
-  --enable_compile \
-  --compile_mode default \
   --enable_csv_log \
   --task "sft:train"

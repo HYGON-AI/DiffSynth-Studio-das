@@ -16,7 +16,6 @@ def is_deepspeed_zero3_enabled():
 
 
 def load_model(model_class, path, config=None, torch_dtype=torch.bfloat16, device="cpu", state_dict_converter=None, use_disk_map=False, module_map=None, vram_config=None, vram_limit=None, state_dict=None, quantize=None):
-    zero3_enabled = is_deepspeed_zero3_enabled()
     config = {} if config is None else config
     with ExitStack() as stack:
         for init_context in get_init_context(torch_dtype=torch_dtype, device=device):
@@ -107,9 +106,7 @@ def load_model(model_class, path, config=None, torch_dtype=torch.bfloat16, devic
         if state_dict is not None:
             pass
         elif use_disk_map:
-            # ZeRO-3 gathers one parameter at a time while loading. Reading
-            # safetensors directly to the accelerator first defeats sharding.
-            load_device = "cpu" if zero3_enabled else device
+            load_device = 'cpu' if is_deepspeed_zero3_enabled() else device
             state_dict = DiskMap(path, load_device, torch_dtype=torch_dtype)
         else:
             state_dict = load_state_dict(path, torch_dtype, device)
@@ -123,7 +120,7 @@ def load_model(model_class, path, config=None, torch_dtype=torch.bfloat16, devic
         # Why does DeepSpeed ZeRO Stage 3 need to be handled separately?
         # Because at this stage, model parameters are partitioned across multiple GPUs.
         # Loading them directly could lead to excessive GPU memory consumption.
-        if zero3_enabled:
+        if is_deepspeed_zero3_enabled():
             from transformers.integrations.deepspeed import _load_state_dict_into_zero3_model
             _load_state_dict_into_zero3_model(model, state_dict)
         else:

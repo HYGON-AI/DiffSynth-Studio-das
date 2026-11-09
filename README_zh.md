@@ -1,5 +1,7 @@
 # DiffSynth-Studio
 
+> HYGON HCU 分支：[环境与优化说明](docs/hcu/README.md) · [上游升级流程](docs/hcu/UPSTREAM_UPGRADES.md)。
+
 <a href="https://github.com/modelscope/DiffSynth-Studio"><img src=".github/workflows/logo.gif" title="Logo" style="max-width:100%;" width="55" /></a> <a href="https://trendshift.io/repositories/10946" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10946" alt="modelscope%2FDiffSynth-Studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
 
 [![PyPI](https://img.shields.io/pypi/v/DiffSynth)](https://pypi.org/project/DiffSynth/)
@@ -10,21 +12,6 @@
 [![Discord](https://badgen.net//discord/members/Mm9suEeUDc)](https://discord.gg/Mm9suEeUDc)
 
 [Switch to English](./README.md)
-
-## 🏷️ 上游归属
-
-本项目基于上游 [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) 进行 HCU 适配与优化。
-
-- 上游仓库：[https://github.com/modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio)
-- 上游分支：`main`
-- 上游 Commit：`4dbf980d4d0eb34eda136300dd0d72014cff8965`
-- 上游许可证：[Apache-2.0](LICENSE)
-
-Modified by Hygon Information Technology Co., Ltd.
-
-## HCU 版本
-
-本仓库是 DiffSynth-Studio-das 的 HCU 适配版本。[环境配置](docs/zh/Pipeline_Usage/Setup.md#hcu) · [训练脚本](examples-hcu/MiniMax-H3/)
 
 ## 简介
 

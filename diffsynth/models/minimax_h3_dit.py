@@ -1,6 +1,6 @@
+# Modified by Hygon Information Technology Co., Ltd., 2026.
 # Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
-# Modified by Hygon Information Technology Co., Ltd., 2026.
 from __future__ import annotations
 
 import math
@@ -8,11 +8,11 @@ import math
 import torch
 import torch.nn as nn
 
-from ..core.attention import attention_varlen_forward
 from ..core.gradient import gradient_checkpoint_forward
-from ..core.ops import can_use_rmsnorm_add, da_cat, rmsnorm_add
-from ..core.ops.minimax_h3_lora import minimax_h3_fc1_swiglu
-from ..core.ops.minimax_h3_tensor_ops import (
+from diffsynth_hcu.attention import packed_varlen_attention
+from diffsynth_hcu.ops import can_use_rmsnorm_add, da_cat, fuse_bias_swiglu, rmsnorm_add
+from diffsynth_hcu.lora import split_fc1_scope
+from .minimax_h3_tensor_ops import (
     compiled_rope,
     modulate_gate,
     modulate_scale_shift,
@@ -101,17 +101,21 @@ def _modulate_gate(x, gate, other, indices):
 
 
 def _sdpa_varlen_attention(q, k, v, cu_seqlens, softmax_scale, max_seqlen=None):
-    if max_seqlen is None:
-        bounds = cu_seqlens.tolist()
-        max_seqlen = max(stop - start for start, stop in zip(bounds[:-1], bounds[1:]))
-    return attention_varlen_forward(
-        q,
-        k,
-        v,
-        cu_seqlens=cu_seqlens,
-        max_seqlen=max_seqlen,
-        scale=softmax_scale,
-    )
+    return packed_varlen_attention(q, k, v, cu_seqlens,
+                                   max_seqlen=max_seqlen,
+                                   softmax_scale=softmax_scale)
+
+
+def minimax_h3_fc1_swiglu(fc1, x):
+    """Fuse H3 MLP activation while preserving PEFT module hooks."""
+    if not getattr(fc1, "_hcu_aiter_add_swiglu", None):
+        return fuse_bias_swiglu(fc1(x))
+    with split_fc1_scope(fc1):
+        hidden = fc1(x)
+    if not isinstance(hidden, tuple):
+        return fuse_bias_swiglu(hidden)
+    fc1._hcu_dispatch_counts["aiter_kernel_dispatch"] += 1
+    return fc1._hcu_aiter_add_swiglu(*hidden)
 
 
 class MiniMaxH3Rope(nn.Module):
@@ -157,6 +161,7 @@ class MiniMaxH3TimeEmbedder(nn.Module):
 class MiniMaxH3Attention(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_head_dim, qk_norm_eps):
         super().__init__()
+        self.qkv_layout = "h3"
         self.num_heads = num_attention_heads
         self.head_dim = attention_head_dim
         inner_dim = self.num_heads * self.head_dim
@@ -169,8 +174,10 @@ class MiniMaxH3Attention(nn.Module):
     def forward(self, x, *, rope_freqs, cu_seqlens, max_seqlen=None):
         total = x.shape[0]
         qkv = self.qkv_proj(x)
-        qkv = qkv.view(total, self.num_heads, 3, self.head_dim)
-        q, k, v = qkv.unbind(dim=2)
+        if self.qkv_layout == "comfy":
+            q, k, v = qkv.view(total, 3, self.num_heads, self.head_dim).unbind(dim=1)
+        else:
+            q, k, v = qkv.view(total, self.num_heads, 3, self.head_dim).unbind(dim=2)
         q = self.q_norm(q)
         k = self.k_norm(k)
         if rope_freqs is not None:
@@ -185,6 +192,7 @@ class MiniMaxH3MLP(nn.Module):
     def __init__(self, hidden_size, ffn_hidden_size):
         super().__init__()
         self.fc1 = nn.Linear(hidden_size, ffn_hidden_size * 2, bias=False)
+        self.fc1._hcu_fc1_swiglu = True
         self.fc2 = nn.Linear(ffn_hidden_size, hidden_size, bias=False)
 
     def forward(self, x):
@@ -402,7 +410,7 @@ class MiniMaxH3DiT(nn.Module):
         for block_id, block in enumerate(self.blocks):
             hidden = gradient_checkpoint_forward(
                 block,
-                use_gradient_checkpointing and not getattr(block, "_h3_no_checkpoint", False),
+                use_gradient_checkpointing,
                 use_gradient_checkpointing_offload,
                 hidden,
                 t_emb=t_emb,

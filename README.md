@@ -1,4 +1,6 @@
-# DiffSynth-Studio-das
+# DiffSynth-Studio
+
+> HYGON HCU fork: see [HCU setup and optimizations](docs/hcu/README.md) and [upstream upgrade workflow](docs/hcu/UPSTREAM_UPGRADES.md).
 
 <a href="https://github.com/modelscope/DiffSynth-Studio"><img src=".github/workflows/logo.gif" title="Logo" style="max-width:100%;" width="55" /></a> <a href="https://trendshift.io/repositories/10946" target="_blank"><img src="https://trendshift.io/api/badge/repositories/10946" alt="modelscope%2FDiffSynth-Studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
 
@@ -10,22 +12,6 @@
 [![Discord](https://badgen.net//discord/members/Mm9suEeUDc)](https://discord.gg/Mm9suEeUDc)
 
 [切换到中文版](./README_zh.md)
-
-## 🏷️ Attribution
-
-This project is based on upstream [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio).
-
-- Upstream repository: [https://github.com/modelscope/DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio)
-- Upstream branch: `main`
-- Upstream Commit: `4dbf980d4d0eb34eda136300dd0d72014cff8965`
-- Upstream license: [Apache-2.0](LICENSE)
-
-Modified by Hygon Information Technology Co., Ltd.
-
-## HCU Support
-
-This fork includes HCU adaptations and optimizations for MiniMax-H3 Ref2VA full training and LoRA finetuning.
-See the [HCU environment guide](docs/en/Pipeline_Usage/Setup.md#hcu) ([中文](docs/zh/Pipeline_Usage/Setup.md#hcu)) and [training scripts](examples-hcu/MiniMax-H3/).
 
 ## Introduction
 

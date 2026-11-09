@@ -5,7 +5,6 @@
 /.vscode
 /.qoder
 /.opencode
-/logs
 *.pkl
 *.safetensors
 *.pth

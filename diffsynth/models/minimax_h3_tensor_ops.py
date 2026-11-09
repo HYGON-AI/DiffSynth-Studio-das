@@ -59,7 +59,7 @@ def _can_reduce_modulation(values, indices, *tables):
     # Frozen LoRA modulation and inference retain their existing compiled path.
     if not torch.is_grad_enabled() or not any(t.requires_grad for t in tables):
         return False
-    if not values.is_cuda or values.ndim != 2 or values.dtype not in (
+    if torch.version.hip is None or not values.is_cuda or values.ndim != 2 or values.dtype not in (
         torch.float16, torch.bfloat16, torch.float32,
     ):
         return False
@@ -206,7 +206,7 @@ def get_minimax_h3_tensor_compile_info():
 
 
 def _run(name, native, *args):
-    if name in _COMPILED:
+    if name in _COMPILED and torch.version.hip is not None and args[0].is_cuda:
         # No catch-and-fallback: graph breaks/compiler failures must be visible.
         result = _COMPILED[name](*args)
         _CALLS[name] = _CALLS.get(name, 0) + 1
@@ -234,6 +234,6 @@ def modulate_update(gate, other, indices):
 
 
 def compiled_rope(x, freqs):
-    if "rope" in _COMPILED:
+    if "rope" in _COMPILED and torch.version.hip is not None and x.is_cuda:
         return _run("rope", _rope, x, freqs)
     return None

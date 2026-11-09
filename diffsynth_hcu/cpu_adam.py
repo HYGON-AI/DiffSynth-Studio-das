@@ -1,17 +1,21 @@
 # Copyright (c) 2026 Hygon Information Technology Co., Ltd.
 # SPDX-License-Identifier: Apache-2.0
-"""Opt-in, instance-local ZeRO-3 CPU subgroup experiment."""
+"""Fused CPUAdam with the validated ZeRO-3 asynchronous writeback path."""
 import inspect
 import os
+import sys
 from pathlib import Path
 
 import torch
 
 
 def load_fused_cpu_adam():
+    import deepspeed
+    if deepspeed.__version__.split("+")[0] != "0.18.4":
+        raise RuntimeError("Vendored fused CPUAdam arithmetic requires the validated DeepSpeed 0.18.4 source contract")
     from deepspeed.ops.op_builder import CPUAdamBuilder
     from torch.utils.cpp_extension import load
-    root = Path(__file__).resolve().parents[1] / "core/ops/csrc/h3_cpu_adam"
+    root = Path(__file__).resolve().parent / "ops/csrc/cpu_adam"
     builder = CPUAdamBuilder()
     if not all(callable(getattr(builder, name, None)) for name in ("cxx_args", "extra_ldflags")):
         raise RuntimeError("Installed DeepSpeed CPUAdamBuilder lacks the required build interface")
@@ -22,7 +26,7 @@ def load_fused_cpu_adam():
         extra_include_paths=[str(root)],
         extra_cflags=["-O3", "-std=c++17"] + [arg for arg in builder.cxx_args() if arg],
         extra_ldflags=builder.extra_ldflags(), with_cuda=False,
-        verbose=os.environ.get("DIFFSYNTH_CPU_ADAM_BUILD_VERBOSE") == "1",
+        verbose=False,
     )
 
 
@@ -44,13 +48,15 @@ class _AdamProxy:
 class CPUAdamPipeline:
     """Bounded pinned-host ring; no extra GPU parameter staging allocation.
 
-    writeback: original CPUAdam + host BF16 conversion + asynchronous H2D.
-    fused: vendored DeepSpeed SIMD Adam arithmetic, with scaling/conversion in-loop.
+    Vendored DeepSpeed SIMD Adam arithmetic, with scaling/conversion in-loop.
     """
-    def __init__(self, zero, mode):
+    def __init__(self, zero):
         import deepspeed
         from deepspeed.ops.adam import DeepSpeedCPUAdam
         from deepspeed.runtime.zero.stage3 import DeepSpeedZeroOptimizer_Stage3
+        if any(getattr(getattr(zero, name, None), "_hcu_cpu_pipeline_wrapper", False)
+               for name in ("step", "_optimizer_step")):
+            raise RuntimeError("A CPUAdam pipeline already owns this optimizer")
         if type(zero) is not DeepSpeedZeroOptimizer_Stage3 or type(zero.optimizer) is not DeepSpeedCPUAdam:
             raise RuntimeError("CPU pipeline requires ZeRO-3 with DeepSpeedCPUAdam")
         if (not zero.offload_optimizer or zero.swap_optimizer or zero.offload_param
@@ -58,11 +64,13 @@ class CPUAdamPipeline:
             raise RuntimeError("CPU pipeline requires CPU optimizer offload, GPU params, no NVMe/GradScaler/ZenFlow")
         if not zero.optimizer.fp32_optimizer_states:
             raise RuntimeError("CPU pipeline requires FP32 optimizer states")
-        self.zero, self.mode = zero, mode
+        self.zero = zero
         self.originals = {}
         self.pending = {}
         self.active = None
         self.native = None
+        self.old_adam = None
+        self._native_created = False
         self.stats = dict(cpu_subgroups=0, h2d_bytes=0, steps=0)
         self.cpu_ids = []
         devices = set()
@@ -96,19 +104,28 @@ class CPUAdamPipeline:
         self.events = [None, None]
         self.cursor = 0
         self.stream = torch.cuda.Stream(device=self.device)
-        if mode == "fused":
+        try:
             self.native = load_fused_cpu_adam()
             opt = zero.optimizer
             g = opt.param_groups[0]
             self.native.create_adam(opt.opt_id, g["lr"], *g["betas"], g["eps"],
                                     g["weight_decay"], opt.adam_w_mode, False)
+            self._native_created = True
             self.old_adam = opt.ds_opt_adam
             opt.ds_opt_adam = _AdamProxy(self.old_adam, self)
-        self._install()
-        print(f"H3 CPU pipeline enabled: mode={mode}, CPU subgroups={len(self.cpu_ids)}, "
+            self._install()
+        except BaseException:
+            self.close()
+            raise
+        print(f"CPUAdam pipeline enabled: fused, CPU subgroups={len(self.cpu_ids)}, "
               f"pinned ring bytes={size * 4}, DeepSpeed={deepspeed.__version__}", flush=True)
 
     def _patch(self, name, wrapper):
+        wrapper._hcu_cpu_pipeline_wrapper = True
+        wrapper._hcu_cpu_pipeline_owner = self
+        if not hasattr(self, "_prior_bindings"):
+            self._prior_bindings = {}
+        self._prior_bindings[name] = getattr(self.zero, name)
         self.originals[name] = (name in vars(self.zero), vars(self.zero).get(name))
         setattr(self.zero, name, wrapper)
 
@@ -118,7 +135,7 @@ class CPUAdamPipeline:
         reassign, post, step = z._reassign_or_swap_out_partitioned_parameters, z._post_step, z.step
 
         def scaled(sub_group_id, total_norm):
-            if self.mode != "fused" or sub_group_id not in self.cpu_ids:
+            if sub_group_id not in self.cpu_ids:
                 return unscale(sub_group_id, total_norm)
             p = z.fp32_partitioned_groups_flat[sub_group_id]
             if p.grad is None or p.grad.device.type != "cpu" or p.grad.dtype != torch.float32 or not p.grad.is_contiguous():
@@ -138,14 +155,11 @@ class CPUAdamPipeline:
                 self.events[slot].synchronize()  # Do not overwrite a DMA source.
             p = z.fp32_partitioned_groups_flat[sub_group_id]
             output = self.buffers[slot][:p.numel()]
-            if self.mode == "fused":
-                self.active = (output, self.pending.pop(sub_group_id))
+            self.active = (output, self.pending.pop(sub_group_id))
             try:
                 result = update(sub_group_id)  # Keep Python state/step/checkpoint semantics.
             finally:
                 self.active = None
-            if self.mode == "writeback":
-                output.copy_(p.detach())
             self.pending[sub_group_id] = (slot, output)
             return result
 
@@ -177,8 +191,8 @@ class CPUAdamPipeline:
                 self.stats["steps"] += 1
                 if self.pending:
                     raise RuntimeError("CPU pipeline left an unfinished subgroup")
-                if os.environ.get("DIFFSYNTH_CPU_PIPELINE_LOG") == "1":
-                    print(f"H3 CPU pipeline rank={os.environ.get('RANK', '0')} {self.stats}", flush=True)
+                if self.stats["steps"] == 1:
+                    print(f"CPUAdam pipeline rank={os.environ.get('RANK', '0')} {self.stats}", flush=True)
                 return result
             except BaseException:
                 self.stream.synchronize()
@@ -192,24 +206,56 @@ class CPUAdamPipeline:
 
     def close(self):
         self.stream.synchronize()
+        if self.native is not None and self.old_adam is not None:
+            proxy = self.zero.optimizer.ds_opt_adam
+            if not isinstance(proxy, _AdamProxy) or proxy.owner is not self or proxy.original is not self.old_adam:
+                raise RuntimeError("CPUAdam native backend binding was overwritten")
+        # Check ownership before restoring anything; do not overwrite another
+        # adapter installed after this one. Failed setattr can leave originals.
+        for name, (present, previous) in self.originals.items():
+            value = getattr(self.zero, name)
+            original = self._prior_bindings[name]
+            same = value is original or (inspect.ismethod(value) and inspect.ismethod(original)
+                and value.__func__ is original.__func__ and value.__self__ is original.__self__)
+            if not (getattr(value, "_hcu_cpu_pipeline_owner", None) is self or same):
+                raise RuntimeError(f"CPUAdam pipeline binding was overwritten: {name}")
         for name, (present, previous) in reversed(list(self.originals.items())):
             if present:
                 setattr(self.zero, name, previous)
-            else:
+            elif name in vars(self.zero):
                 delattr(self.zero, name)
         self.originals.clear()
         if self.native is not None:
-            self.zero.optimizer.ds_opt_adam = self.old_adam
-            self.native.destroy_adam(self.zero.optimizer.opt_id)
+            if self.old_adam is not None:
+                self.zero.optimizer.ds_opt_adam = self.old_adam
+            if self._native_created:
+                self.native.destroy_adam(self.zero.optimizer.opt_id)
             self.native = None
 
 
 def create_cpu_adam_pipeline(model):
-    mode = os.environ.get("DIFFSYNTH_CPU_ADAM_PIPELINE", "off")
-    if mode in ("off", "0", ""):
+    """Create the validated fused path when the prepared model is eligible."""
+    if torch.version.hip is None or "deepspeed" not in sys.modules:
         return None
-    if mode not in ("writeback", "fused"):
-        raise ValueError("DIFFSYNTH_CPU_ADAM_PIPELINE must be off/writeback/fused")
-    if os.environ.get("DIFFSYNTH_ZERO3_DEBUG", "") not in ("", "0", "off"):
-        raise RuntimeError("Run CPU pipeline and zero3_debug in separate experiments")
-    return CPUAdamPipeline(model.optimizer, mode)
+    from deepspeed.ops.adam import DeepSpeedCPUAdam
+    from deepspeed.runtime.zero.stage3 import DeepSpeedZeroOptimizer_Stage3
+    zero = getattr(model, "optimizer", None)
+    if type(zero) is not DeepSpeedZeroOptimizer_Stage3 or type(zero.optimizer) is not DeepSpeedCPUAdam:
+        return None
+    if (not zero.offload_optimizer or zero.swap_optimizer or zero.offload_param
+            or getattr(zero, "torch_autocast_gradscaler", None)
+            or getattr(zero, "zenflow", False) or not zero.optimizer.fp32_optimizer_states):
+        return None
+    cpu_groups = [(master, zero.fp16_partitioned_groups_flat[i])
+                  for i, master in enumerate(zero.fp32_partitioned_groups_flat)
+                  if master.device.type == "cpu"]
+    if not cpu_groups or any(
+        master.dtype != torch.float32 or not master.is_contiguous()
+        or shard is None or shard.device.type != "cuda" or shard.dtype != torch.bfloat16
+        or not shard.is_contiguous() or shard.numel() != master.numel()
+        for master, shard in cpu_groups
+    ):
+        return None
+    if len({shard.device for _, shard in cpu_groups}) != 1:
+        return None
+    return CPUAdamPipeline(zero)

@@ -1,9 +1,4 @@
-# Copyright (c) 2026 Hygon Information Technology Co., Ltd.
-# SPDX-License-Identifier: Apache-2.0
-# Modified by Hygon Information Technology Co., Ltd., 2026.
 import os
-import torch
-from .h3_fa_cache import fa_cache_layers
 from .registry import (
     get_attention_implementation,
     list_attention_implementations,
@@ -27,7 +22,6 @@ def initialize_attention_priority():
 
 
 ATTENTION_IMPLEMENTATION = initialize_attention_priority()
-_H3_FA_CACHE_ENABLED = any(layers > 0 for layers in fa_cache_layers())
 
 
 def attention_forward(q, k, v, q_pattern="b n s d", k_pattern="b n s d", v_pattern="b n s d", out_pattern="b n s d", dims=None, attn_mask=None, scale=None, is_causal=False, compatibility_mode=False, window_size=None, use_flex=False, score_mod=None):
@@ -55,47 +49,3 @@ def attention_forward(q, k, v, q_pattern="b n s d", k_pattern="b n s d", v_patte
     if backend.supports_window:
         kwargs["window_size"] = window_size
     return backend.func(q, k, v, q_pattern, k_pattern, v_pattern, out_pattern, dims, **kwargs)
-
-
-def attention_varlen_forward(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    cu_seqlens: torch.Tensor,
-    max_seqlen: int,
-    scale=None,
-):
-    """Compute independent packed attention segments without padding between them."""
-    if ATTENTION_IMPLEMENTATION == "flash_attention_2":
-        from .flash_attention import flash_attn
-        if _H3_FA_CACHE_ENABLED:
-            from .h3_fa_cache import cached_attention
-            cached = cached_attention(q, k, v, cu_seqlens, max_seqlen, scale)
-            if cached is not None:
-                return cached
-        out = flash_attn.flash_attn_varlen_func(
-            q,
-            k,
-            v,
-            cu_seqlens_q=cu_seqlens,
-            cu_seqlens_k=cu_seqlens,
-            max_seqlen_q=max_seqlen,
-            max_seqlen_k=max_seqlen,
-            softmax_scale=scale,
-            causal=False,
-        )
-        return out[0] if isinstance(out, tuple) else out
-
-    out = torch.empty_like(q)
-    bounds = cu_seqlens.tolist()
-    for start, stop in zip(bounds[:-1], bounds[1:]):
-        if stop == start:
-            continue
-        segment = attention_forward(
-            q[start:stop].transpose(0, 1).unsqueeze(0),
-            k[start:stop].transpose(0, 1).unsqueeze(0),
-            v[start:stop].transpose(0, 1).unsqueeze(0),
-            scale=scale,
-        )
-        out[start:stop] = segment.squeeze(0).transpose(0, 1)
-    return out
