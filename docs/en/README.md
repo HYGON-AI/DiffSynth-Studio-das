@@ -58,11 +58,15 @@ This section introduces the Diffusion models supported by `DiffSynth-Studio`. So
 * [Image Quality Metrics](./Model_Details/Image-Quality-Metrics.md)
 * [Ideogram 4](./Model_Details/Ideogram-4.md)
 * [Krea-2](./Model_Details/Krea-2.md)
+* [Fibo 2.0](./Model_Details/Fibo.md)
 * [Boogu-Image](./Model_Details/Boogu-Image.md)
 * [LingBot-Video](./Model_Details/LingBot-Video.md)
 * [MiniMax-H3](./Model_Details/MiniMax-H3.md)
 * [MiniMax-Music3](./Model_Details/MiniMax-Music3.md)
 * [SenseNova-U1](./Model_Details/SenseNova-U1.md)
+* [YuE2](./Model_Details/YuE2.md)
+* [Qwen-Image-2.1](./Model_Details/Qwen-Image-2.1.md)
+* [FLUX.3](./Model_Details/FLUX.3.md)
 
 ## Section 3: Training Framework
 
